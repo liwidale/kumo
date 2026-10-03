@@ -1,6 +1,6 @@
 appId: app.kumo.desktop
 productName: Kumo
-copyright: Copyright © 2026 Kumo
+copyright: Copyright © 2026 Liwidale
 directories:
   output: release
   buildResources: resources/icons

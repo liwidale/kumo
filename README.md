@@ -13,6 +13,7 @@
   <a href="https://github.com/liwidale/kumo/releases/latest"><img src="https://img.shields.io/github/v/release/liwidale/kumo?label=download&color=4c9dff" alt="Latest release"></a>
   <a href="https://github.com/liwidale/kumo/actions/workflows/release.yml"><img src="https://img.shields.io/github/actions/workflow/status/liwidale/kumo/release.yml?label=build" alt="Build"></a>
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows-lightgrey" alt="macOS and Windows">
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/liwidale/kumo?color=3ad37e" alt="MIT License"></a>
 </p>
 
 <p align="center">
@@ -101,3 +102,7 @@ git push origin v1.0.1
 ```
 
 Signing and notarization turn on automatically when these repository secrets are set: `CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`. Without them the builds are unsigned.
+
+## License
+
+[MIT](LICENSE) © 2026 Liwidale

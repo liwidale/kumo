@@ -161,7 +161,7 @@ function General({ s, patch }: { s: Settings; patch: Patch }) {
             ]}
           />
         </Row>
-        <Row title="Pause notifications" desc="Kumo keeps watching but won't open by itself. Approvals still wait for you here.">
+        <Row title="Pause notifications" desc="Kumo keeps watching but won't open by itself. Agents ask for permission in their own windows.">
           <Toggle label="Pause" on={s.paused} onChange={(v) => patch({ paused: v })} />
         </Row>
       </Group>

@@ -164,7 +164,8 @@ class ContextStore extends EventEmitter {
 
   async captureWindow(win: ActiveWindow | null): Promise<ContextItem> {
     const sources = await desktopCapturer.getSources({ types: ['window', 'screen'], thumbnailSize: { width: 1600, height: 1000 }, fetchWindowIcons: false })
-    let src = win?.handle ? sources.find((s) => s.id.startsWith(`window:${win.handle}:`)) : undefined
+    const winId = win?.windowId ?? win?.handle
+    let src = winId ? sources.find((s) => s.id.startsWith(`window:${winId}:`)) : undefined
     if (!src && win) src = sources.find((s) => s.name && win.title && s.name === win.title)
     if (!src) src = sources.find((s) => s.id.startsWith('screen:'))
     if (!src || src.thumbnail.isEmpty()) throw new Error('Kumo could not capture that window. On macOS, allow Screen Recording in System Settings.')

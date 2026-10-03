@@ -14,8 +14,9 @@
     "dev": "node scripts/build.mjs --dev && electron .",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "pack:win": "node scripts/relay.mjs && node scripts/build.mjs && electron-builder --win --x64",
-    "pack:mac": "node scripts/relay.mjs && node scripts/build.mjs && electron-builder --mac",
-    "icons": "node scripts/icons.mjs"
+    "pack:mac": "node scripts/relay.mjs --universal && node scripts/koffi.mjs && node scripts/build.mjs && electron-builder --mac",
+    "icons": "node scripts/icons.mjs",
+    "test:mac": "node scripts/test-mac.mjs"
   },
   "dependencies": {
     "koffi": "^3.3.2"

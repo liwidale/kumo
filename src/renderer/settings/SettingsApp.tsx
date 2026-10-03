@@ -91,6 +91,8 @@ function Btn({ children, kind = 'secondary', onClick, disabled, icon }: { childr
 type Patch = (p: Partial<Settings>) => void
 
 function General({ s, patch }: { s: Settings; patch: Patch }) {
+  const snap = useSnapshot()
+  const macTerminals = [...new Set([...(snap?.installed.terminals ?? []), s.terminal])].filter((t) => t !== 'Terminal' && t !== 'auto')
   const [displays, setDisplays] = useState<{ id: string; label: string; primary: boolean }[]>([])
   useEffect(() => {
     void window.kumo.displays().then(setDisplays)
@@ -168,7 +170,7 @@ function General({ s, patch }: { s: Settings; patch: Patch }) {
           <Select
             value={s.terminal}
             onChange={(v) => patch({ terminal: v })}
-            options={isMac ? [{ value: 'auto', label: 'Terminal' }, { value: 'iTerm', label: 'iTerm' }] : [{ value: 'auto', label: 'Windows Terminal' }, { value: 'cmd', label: 'Command Prompt' }]}
+            options={isMac ? [{ value: 'auto', label: 'Terminal' }, ...macTerminals.map((t) => ({ value: t, label: t }))] : [{ value: 'auto', label: 'Windows Terminal' }, { value: 'cmd', label: 'Command Prompt' }]}
           />
         </Row>
         <Row title="Editor for files">

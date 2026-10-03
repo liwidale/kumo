@@ -9,7 +9,9 @@ const args = ['build', '--release', '--manifest-path', path.join(root, 'relay/Ca
 const mac = process.platform === 'darwin' && process.argv.includes('--universal')
 
 if (mac) {
-  for (const t of ['aarch64-apple-darwin', 'x86_64-apple-darwin']) execFileSync('cargo', [...args, '--target', t], { stdio: 'inherit' })
+  const targets = ['aarch64-apple-darwin', 'x86_64-apple-darwin']
+  execFileSync('rustup', ['target', 'add', ...targets], { stdio: 'inherit' })
+  for (const t of targets) execFileSync('cargo', [...args, '--target', t], { stdio: 'inherit' })
   mkdirSync(path.join(root, 'resources/relay'), { recursive: true })
   execFileSync('lipo', [
     '-create',

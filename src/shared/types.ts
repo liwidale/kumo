@@ -259,6 +259,7 @@ export interface ActiveWindow {
   title: string
   pid: number
   handle?: string
+  windowId?: number
 }
 
 export interface GitChange {

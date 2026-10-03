@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import type { ActiveWindow, LaunchRequest, Result, Session } from '../../shared/types'
 import { context, describeForAgent } from '../context'
-import { antigravityExe, cursorExe, detectInstalled } from '../detect'
+import { antigravityExe, cursorExe, detectInstalled, editorApp, macApp } from '../detect'
 import { settings } from '../settings'
 import { exists, isMac, isWin, log, which } from '../util'
 import * as mac from './darwin'
@@ -48,7 +48,7 @@ export async function jumpTo(s: Session): Promise<Result> {
       if (app === 'Antigravity' && win.focusApp(/^antigravity\.exe$/i)) return { ok: true }
       if (app === 'Cursor' && win.focusApp(/^cursor\.exe$/i)) return { ok: true }
     } else if (isMac) {
-      if (await mac.focusHost(s.host)) return { ok: true }
+      if (await mac.focusHost(s.host, s.cwd)) return { ok: true }
     }
   } catch (e) {
     log('jump failed', e)
@@ -82,6 +82,14 @@ function detached(cmd: string, args: string[], cwd?: string): Promise<boolean> {
   })
 }
 
+function openApp(args: string[]): Promise<boolean> {
+  return new Promise((resolve) => {
+    const child = spawn('/usr/bin/open', args, { stdio: 'ignore' })
+    child.once('exit', (c) => resolve(c === 0))
+    child.once('error', () => resolve(false))
+  })
+}
+
 export async function openInEditor(target: string, cwd?: string): Promise<Result> {
   const full = cwd && !path.isAbsolute(target) ? path.join(cwd, target) : target
   if (!exists(full)) return { ok: false, error: 'That file no longer exists.' }
@@ -89,6 +97,8 @@ export async function openInEditor(target: string, cwd?: string): Promise<Result
   const order = pref !== 'auto' && pref !== 'system' ? [pref] : pref === 'system' ? [] : ['code', 'cursor', 'zed', 'windsurf', 'antigravity']
   for (const ed of order) {
     const bin = which(ed)
+    const app = bin ? null : editorApp(ed)
+    if (app && (await openApp(['-a', app, full]))) return { ok: true }
     if (!bin) continue
     const isDir = fs.statSync(full).isDirectory()
     const args = isDir ? [full] : ed === 'zed' ? [full] : ['-g', full]
@@ -120,11 +130,20 @@ async function inTerminal(cwd: string, argv: string[]): Promise<boolean> {
     return detached('cmd.exe', ['/c', 'start', '""', '/D', cwd, 'cmd.exe', '/k', line])
   }
   if (isMac) {
+    const shell = process.env.SHELL || '/bin/zsh'
     const line = `cd ${sq(cwd)} && ${argv.map(sq).join(' ')}`
-    const app = pref === 'iTerm' && exists('/Applications/iTerm.app') ? 'iTerm' : 'Terminal'
+    const ghostty = pref === 'Ghostty' ? macApp('Ghostty') : null
+    if (ghostty) {
+      const command = argv.map(sq).join(' ')
+      if (await mac.ghosttyWindow(cwd, command)) return true
+      // Not running yet, so its launch args shape the first window. Typing the command into
+      // the user's own shell (like Terminal does) keeps the shell open when the agent exits.
+      return openApp(['-na', ghostty, '--args', `--working-directory=${cwd}`, `--input=raw:${command.replace(/\\/g, '\\\\')}\\n`])
+    }
+    const app = pref === 'iTerm' && macApp('iTerm') ? 'iTerm' : 'Terminal'
     const script =
       app === 'iTerm'
-        ? `tell application "iTerm"\nactivate\ncreate window with default profile command ${JSON.stringify(`/bin/zsh -lc ${sq(line + '; exec zsh -l')}`)}\nend tell`
+        ? `tell application "iTerm"\nactivate\ncreate window with default profile command ${JSON.stringify(`${shell} -lc ${sq(`${line}; exec ${sq(shell)} -l`)}`)}\nend tell`
         : `tell application "Terminal"\nactivate\ndo script ${JSON.stringify(line)}\nend tell`
     return detached('/usr/bin/osascript', ['-e', script])
   }
@@ -168,7 +187,7 @@ export async function launch(req: LaunchRequest): Promise<Result<string>> {
       if (prompt) clipboard.writeText(prompt)
       const exe = cursorExe()
       let ok = false
-      if (isMac) ok = await new Promise<boolean>((r) => spawn('/usr/bin/open', ['-a', 'Cursor', req.cwd]).once('exit', (c) => r(c === 0)).once('error', () => r(false)))
+      if (isMac) ok = await openApp(['-a', exe || 'Cursor', req.cwd])
       else if (exe) ok = await detached(exe, [req.cwd])
       return ok ? { ok: true, value: prompt ? 'Cursor is opening the project - your prompt is on the clipboard.' : 'Cursor is opening the project.' } : { ok: false, error: 'Cursor could not be opened.' }
     }
@@ -176,7 +195,7 @@ export async function launch(req: LaunchRequest): Promise<Result<string>> {
       if (prompt) clipboard.writeText(prompt)
       const exe = antigravityExe()
       let ok = false
-      if (isMac) ok = await new Promise<boolean>((r) => spawn('/usr/bin/open', ['-a', 'Antigravity', req.cwd]).once('exit', (c) => r(c === 0)).once('error', () => r(false)))
+      if (isMac) ok = await openApp(['-a', exe || 'Antigravity', req.cwd])
       else if (exe) ok = await detached(exe, [req.cwd])
       return ok ? { ok: true, value: prompt ? 'Antigravity is opening the project - your prompt is on the clipboard.' : 'Antigravity is opening the project.' } : { ok: false, error: 'Antigravity could not be opened.' }
     }

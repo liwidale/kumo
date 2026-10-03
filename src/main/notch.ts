@@ -1,5 +1,5 @@
 import type { Display } from 'electron'
-import { createRequire } from 'node:module'
+import { objc } from './platform/objc'
 import { isMac, log } from './util'
 
 export interface NotchGeometry {
@@ -17,42 +17,30 @@ interface ScreenInfo {
   rightW: number
 }
 
-let native: ScreenInfo[] | null | undefined
-
+// Queried fresh each time: screens come and go, and AppKit already caches the list.
 function nativeScreens(): ScreenInfo[] | null {
-  if (native !== undefined) return native
-  native = null
-  if (!isMac) return null
+  const o = objc()
+  if (!o) return null
   try {
-    const require = createRequire(__filename)
-    const koffi = require('koffi')
-    const objc = koffi.load('/usr/lib/libobjc.A.dylib')
-    const Rect = koffi.struct('KumoNSRect', { x: 'double', y: 'double', w: 'double', h: 'double' })
-    const Insets = koffi.struct('KumoNSEdgeInsets', { top: 'double', left: 'double', bottom: 'double', right: 'double' })
-    const getClass = objc.func('void *objc_getClass(const char *name)')
-    const sel = objc.func('void *sel_registerName(const char *name)')
-    const msgPtr = objc.func('objc_msgSend', 'void *', ['void *', 'void *'])
-    const msgPtrIdx = objc.func('objc_msgSend', 'void *', ['void *', 'void *', 'uint64'])
-    const msgU64 = objc.func('objc_msgSend', 'uint64', ['void *', 'void *'])
-    const msgRect = objc.func('objc_msgSend', Rect, ['void *', 'void *'])
-    const msgInsets = objc.func('objc_msgSend', Insets, ['void *', 'void *'])
-    const NSScreen = getClass('NSScreen')
-    const list = msgPtr(NSScreen, sel('screens'))
-    const count = Number(msgU64(list, sel('count')))
-    const out: ScreenInfo[] = []
-    for (let i = 0; i < count; i++) {
-      const s = msgPtrIdx(list, sel('objectAtIndex:'), i)
-      const frame = msgRect(s, sel('frame'))
-      const insets = msgInsets(s, sel('safeAreaInsets'))
-      const left = msgRect(s, sel('auxiliaryTopLeftArea'))
-      const right = msgRect(s, sel('auxiliaryTopRightArea'))
-      out.push({ x: frame.x, width: frame.w, height: frame.h, insetTop: insets.top, leftW: left.w, rightW: right.w })
-    }
-    native = out
+    return o.pool(() => {
+      const list = o.send(o.cls('NSScreen'), 'screens')
+      const out: ScreenInfo[] = []
+      for (let i = 0; i < o.count(list); i++) {
+        const s = o.send(list, 'objectAtIndex:', i)
+        const frame = o.rect(s, 'frame')
+        if (!frame) continue
+        // Older or future systems without these selectors simply report no notch.
+        const insets = o.insets(s, 'safeAreaInsets')
+        const left = o.rect(s, 'auxiliaryTopLeftArea')
+        const right = o.rect(s, 'auxiliaryTopRightArea')
+        out.push({ x: frame.x, width: frame.w, height: frame.h, insetTop: insets?.top ?? 0, leftW: left?.w ?? 0, rightW: right?.w ?? 0 })
+      }
+      return out
+    })
   } catch (e) {
     log('notch: native query unavailable, using heuristic', (e as Error).message)
+    return null
   }
-  return native
 }
 
 export function notchFor(d: Display): NotchGeometry {

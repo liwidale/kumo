@@ -14,6 +14,7 @@ import { settings } from './settings'
 import { openSettings, refreshSettingsChrome, setSettingsUrl } from './settingsWindow'
 import { createTray, refreshTray } from './tray'
 import { adapterFor } from './agents/adapters'
+import { loadShellPath } from './platform/darwin'
 import { isMac, log } from './util'
 
 
@@ -91,6 +92,8 @@ function notifyApproval(key: string): void {
 }
 
 app.whenReady().then(async () => {
+  // Launched from a terminal, the environment is already the user's.
+  if (isMac && !process.env.TERM_PROGRAM) await loadShellPath().catch((e) => log('shell PATH unavailable', e))
   settings.load()
   applyTheme()
   context.load()
@@ -106,7 +109,7 @@ app.whenReady().then(async () => {
   createTray()
   registerHotkey()
   if (isMac) app.dock?.hide()
-  app.setLoginItemSettings({ openAtLogin: settings.get().launchAtLogin })
+  if (app.getLoginItemSettings().openAtLogin !== settings.get().launchAtLogin) app.setLoginItemSettings({ openAtLogin: settings.get().launchAtLogin })
 
   sessions.on('change', () => {
     pushSnapshot()

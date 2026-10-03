@@ -3,7 +3,6 @@ out/
 release/
 relay/target/
 resources/relay/
-promo/build/
-promo/*.mp4
+promo/
 *.log
 .DS_Store

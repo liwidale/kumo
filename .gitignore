@@ -1,0 +1,9 @@
+node_modules/
+out/
+release/
+relay/target/
+resources/relay/
+promo/build/
+promo/*.mp4
+*.log
+.DS_Store

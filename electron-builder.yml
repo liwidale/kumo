@@ -1,0 +1,69 @@
+appId: app.kumo.desktop
+productName: Kumo
+copyright: Copyright © 2026 Kumo
+directories:
+  output: release
+  buildResources: resources/icons
+files:
+  - out/**
+  - package.json
+  - "!**/*.map"
+asar: true
+asarUnpack:
+  - node_modules/koffi/**
+  - node_modules/@koromix/**
+extraResources:
+  - from: resources/relay
+    to: relay
+  - from: resources/tray
+    to: tray
+electronLanguages:
+  - en-US
+  - en-GB
+  - ru
+  - de
+  - fr
+  - es
+  - ja
+  - zh-CN
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: resources/icons/icon.ico
+  executableName: Kumo
+  artifactName: Kumo-Setup-${version}.${ext}
+nsis:
+  oneClick: true
+  perMachine: false
+  runAfterFinish: true
+  createDesktopShortcut: false
+  createStartMenuShortcut: true
+  shortcutName: Kumo
+  deleteAppDataOnUninstall: false
+
+mac:
+  target:
+    - target: dmg
+      arch: [universal]
+    - target: zip
+      arch: [universal]
+  icon: resources/icons/icon.icns
+  category: public.app-category.developer-tools
+  hardenedRuntime: true
+  darkModeSupport: true
+  extendInfo:
+    LSUIElement: true
+    NSAppleEventsUsageDescription: Kumo brings the terminal tab of a session forward and opens new sessions in Terminal or iTerm.
+    NSScreenCaptureUsageDescription: Kumo captures a window only when you ask it to share that window as context.
+  artifactName: Kumo-${version}-mac.${ext}
+dmg:
+  title: Kumo
+  contents:
+    - x: 140
+      y: 180
+    - x: 400
+      y: 180
+      type: link
+      path: /Applications

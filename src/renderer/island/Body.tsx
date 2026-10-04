@@ -159,9 +159,9 @@ export function Body({ level, maxHeight, onHeight, kumoRef, mood, now }: Props) 
           key={key}
           data-key={key}
           className="view"
-          initial={{ opacity: 0, y: 6, filter: 'blur(3px)' }}
-          animate={{ opacity: 1, y: 0, filter: 'blur(0px)', transition: { duration: 0.22, ease: [0.22, 1, 0.36, 1] } }}
-          exit={{ opacity: 0, y: -4, filter: 'blur(2px)', transition: { duration: 0.1 } }}
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0, transition: { duration: 0.22, ease: [0.22, 1, 0.36, 1] } }}
+          exit={{ opacity: 0, y: -4, transition: { duration: 0.1 } }}
         >
           {level === 'peek' ? <Peek now={now} /> : level === 'notify' ? <Notify now={now} /> : <ViewFor view={view} kumoRef={kumoRef} mood={mood} now={now} />}
         </motion.div>

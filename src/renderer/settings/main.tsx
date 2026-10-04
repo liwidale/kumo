@@ -1,11 +1,8 @@
 import { createRoot } from 'react-dom/client'
-import { boot } from '../shared/boot'
 import { platformClass } from '../shared/hooks'
 import '../styles/tokens.css'
 import '../styles/settings.css'
+import { SettingsApp } from './SettingsApp'
 
 platformClass()
-void boot().then(async () => {
-  const { SettingsApp } = await import('./SettingsApp')
-  createRoot(document.getElementById('root')!).render(<SettingsApp />)
-})
+createRoot(document.getElementById('root')!).render(<SettingsApp />)

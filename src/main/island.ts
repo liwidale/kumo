@@ -23,6 +23,14 @@ let currentDisplayId = 0
 let hiddenForFullscreen = false
 let expanded = false
 let compact = false
+let painted = false
+let capturedAt = 0
+
+function captureSoon(): void {
+  if (Date.now() - capturedAt < 1500) return
+  capturedAt = Date.now()
+  void captureActive()
+}
 const COMPACT_W = 480
 
 function windowSize(): { w: number; h: number } {
@@ -127,11 +135,13 @@ export function createIsland(): BrowserWindow {
   })
   place()
   win.once('ready-to-show', () => {
+    painted = true
     if (settings.get().presence !== 'tray') win?.showInactive()
     startTracking()
   })
   win.on('closed', () => {
     stopTracking()
+    painted = false
     win = null
   })
   return win
@@ -151,7 +161,7 @@ export function setHitRect(r: typeof hit): void {
 
 export function setExpanded(v: boolean): void {
   if (settings.get().debug) log('island expanded:', v)
-  if (v && !expanded) void captureActive()
+  if (v && !expanded) captureSoon()
   expanded = v
   applyPresence()
 }
@@ -159,7 +169,7 @@ export function setExpanded(v: boolean): void {
 let presenceTimer: NodeJS.Timeout | null = null
 
 export function applyPresence(): void {
-  if (!win || win.isDestroyed()) return
+  if (!win || win.isDestroyed() || !painted) return
   const trayOnly = settings.get().presence === 'tray'
   const wanted = !trayOnly || expanded || sessions.approvals().length > 0
   if (presenceTimer) {
@@ -183,7 +193,7 @@ export function applyPresence(): void {
 export function setFocusable(focus: boolean): void {
   if (!win) return
   if (focus) {
-    if (!win.isFocused()) void captureActive()
+    if (!win.isFocused()) captureSoon()
     win.setFocusable(true)
     if (!win.isVisible()) {
       hiddenForFullscreen = false
@@ -228,6 +238,7 @@ function track(): void {
     ignoring = !inside
     win.setIgnoreMouseEvents(ignoring, { forward: true })
   }
+  if (inside && !lastPointer.inside && !expanded) captureSoon()
   if (x === lastPointer.x && y === lastPointer.y && inside === lastPointer.inside) return
   lastPointer = { x, y, inside }
   const cx = hit ? hit.x + Math.min(hit.w, 60) / 2 : b.width / 2
@@ -245,7 +256,7 @@ function checkFullscreen(): void {
   if (full && !hiddenForFullscreen) {
     hiddenForFullscreen = true
     win.hide()
-  } else if (!full && hiddenForFullscreen) {
+  } else if (!full && hiddenForFullscreen && painted) {
     hiddenForFullscreen = false
     if (settings.get().presence !== 'tray' || expanded) {
       win.showInactive()
@@ -255,7 +266,7 @@ function checkFullscreen(): void {
 }
 
 export function reassert(): void {
-  if (!win || win.isDestroyed()) return
+  if (!win || win.isDestroyed() || !painted) return
   place()
   win.setAlwaysOnTop(true, 'screen-saver')
   if (!win.isVisible() && !hiddenForFullscreen && settings.get().presence !== 'tray') win.showInactive()

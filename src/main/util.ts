@@ -101,12 +101,53 @@ export function exists(p: string): boolean {
   }
 }
 
-export function which(cmd: string): string | null {
-  const exts = isWin ? (process.env.PATHEXT || '.EXE;.CMD;.BAT').split(';') : ['']
+function searchDirs(): string[] {
   const extra = isWin
     ? [path.join(os.homedir(), '.local', 'bin'), path.join(process.env.LOCALAPPDATA || '', 'Programs', 'antigravity', 'bin')]
     : ['/usr/local/bin', '/opt/homebrew/bin', path.join(os.homedir(), '.local', 'bin'), path.join(os.homedir(), '.claude', 'local')]
-  const dirs = [...(process.env.PATH || '').split(path.delimiter), ...extra].filter(Boolean)
+  return [...new Set([...(process.env.PATH || '').split(path.delimiter), ...extra].filter(Boolean))]
+}
+
+let binIndex: Map<string, string> | null = null
+let indexing: Promise<void> | null = null
+
+export function refreshBinIndex(): Promise<void> {
+  if (indexing) return indexing
+  indexing = (async () => {
+    const dirs = searchDirs()
+    const lists = await Promise.all(dirs.map((d) => fs.promises.readdir(d).then((names) => ({ d, names }), () => ({ d, names: [] as string[] }))))
+    const exts = isWin ? new Set((process.env.PATHEXT || '.EXE;.CMD;.BAT').toLowerCase().split(';')) : null
+    const map = new Map<string, string>()
+    let budget = 0
+    for (const { d, names } of lists) {
+      for (const n of names) {
+        const k = n.toLowerCase()
+        if (exts) {
+          const dot = k.lastIndexOf('.')
+          if (dot < 0 || !exts.has(k.slice(dot))) continue
+        }
+        if (!map.has(k)) map.set(k, path.join(d, n))
+        if (++budget % 800 === 0) await new Promise((r) => setImmediate(r))
+      }
+      await new Promise((r) => setImmediate(r))
+    }
+    binIndex = map
+  })().finally(() => {
+    indexing = null
+  })
+  return indexing
+}
+
+export function which(cmd: string): string | null {
+  const exts = isWin ? (process.env.PATHEXT || '.EXE;.CMD;.BAT').split(';') : ['']
+  if (binIndex) {
+    for (const ext of exts) {
+      const hit = binIndex.get((cmd + ext).toLowerCase())
+      if (hit) return hit
+    }
+    return null
+  }
+  const dirs = searchDirs()
   for (const dir of dirs) {
     for (const ext of exts) {
       const full = path.join(dir, cmd + ext.toLowerCase())

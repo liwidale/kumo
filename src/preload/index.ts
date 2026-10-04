@@ -11,6 +11,7 @@ const on =
 
 const api: KumoApi = {
   platform: process.platform as KumoApi['platform'],
+  language: String(ipcRenderer.sendSync('settings:language') || 'auto'),
   snapshot: () => ipcRenderer.invoke('snapshot'),
   onSnapshot: on('snapshot'),
   settings: () => ipcRenderer.invoke('settings:get'),

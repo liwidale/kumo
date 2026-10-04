@@ -7,7 +7,7 @@ import { asks } from './asks'
 import { chat } from './chat/chat'
 import { listModels, listProviders } from './chat/providers'
 import { context } from './context'
-import { detectInstalled, invalidateDetect } from './detect'
+import { detectInstalled, refreshDetect } from './detect'
 import { gitDiff, gitInfo, revertFile } from './git'
 import { history } from './history'
 import { serverState } from './hookServer'
@@ -96,6 +96,9 @@ const str = (v: unknown, max = 10_000): string => (typeof v === 'string' ? v.sli
 export function registerIpc(): void {
   ipcMain.handle('snapshot', () => snapshot())
   ipcMain.handle('settings:get', () => settings.get())
+  ipcMain.on('settings:language', (e) => {
+    e.returnValue = settings.get().language
+  })
   ipcMain.handle('settings:set', (_e, patch: Partial<Settings>) => settings.set(patch && typeof patch === 'object' ? patch : {}))
   ipcMain.handle('theme', () => resolvedTheme())
 
@@ -230,10 +233,7 @@ export function registerIpc(): void {
   ipcMain.handle('ask:answer', (_e, askId: string, text: string | null) => (asks.answer(str(askId), text === null ? null : str(text, 2000)) ? { ok: true } : { ok: false, error: tr('That question is no longer waiting.') }))
   ipcMain.handle('updates:check', () => updater.check())
   ipcMain.handle('updates:install', () => updater.install())
-  ipcMain.handle('detect:refresh', () => {
-    invalidateDetect()
-    return detectInstalled()
-  })
+  ipcMain.handle('detect:refresh', () => refreshDetect())
   ipcMain.handle('hooks:apply', (_e, id: HookPreview['integration'], install: boolean, fp: string) => {
     if (!integrations.validTarget(id)) return { ok: false, error: tr('Unknown integration') }
     try {

@@ -50,6 +50,7 @@ export interface IslandCommand {
 
 export interface KumoApi {
   platform: 'darwin' | 'win32' | 'linux'
+  language: string
   snapshot(): Promise<Snapshot>
   onSnapshot(cb: (s: Snapshot) => void): () => void
   settings(): Promise<Settings>

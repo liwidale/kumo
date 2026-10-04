@@ -4,7 +4,7 @@ import { pathToFileURL } from 'node:url'
 import { chat } from './chat/chat'
 import { history } from './history'
 import { context } from './context'
-import { invalidateDetect } from './detect'
+import { detectEvents, invalidateDetect, refreshDetect } from './detect'
 import { ensureRuntime, restartHookServer, startHookServer, stopHookServer } from './hookServer'
 import { ensureRelay } from './integrations'
 import { applyPresence, createIsland, islandWindow, loadIsland, reassert, send } from './island'
@@ -123,6 +123,7 @@ app.whenReady().then(async () => {
   context.load()
   history.load()
   ensureRelay()
+  await refreshDetect()
   registerIpc()
   await startHookServer()
   sessions.start()
@@ -165,6 +166,7 @@ app.whenReady().then(async () => {
     pushSnapshot()
     refreshTray()
   })
+  detectEvents.on('change', () => pushSnapshot())
   context.on('change', () => pushSnapshot())
   chat.on('event', (e) => broadcast('chat', e))
 

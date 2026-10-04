@@ -1,3 +1,4 @@
+import { tr } from '../../shared/i18n'
 import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ActiveWindow, ChatAttachment, ContextItem, Conversation } from '../../../shared/types'
@@ -47,7 +48,7 @@ function Message({ m, onRetry }: { m: Conversation['messages'][number]; onRetry?
           <div className="msg-atts">
             {m.attachments.map((a) =>
               a.thumb ? (
-                <img key={a.id} className="msg-image" src={a.thumb} alt={a.name} title={`${a.name} - click to open`} onClick={() => a.path && void window.kumo.openFolder(a.path)} />
+                <img key={a.id} className="msg-image" src={a.thumb} alt={a.name} title={tr('{0} - click to open', a.name)} onClick={() => a.path && void window.kumo.openFolder(a.path)} />
               ) : (
                 <span key={a.id} className="chip static small">
                   <Icon name={kindIcon(a.kind)} size={12} />
@@ -68,15 +69,13 @@ function Message({ m, onRetry }: { m: Conversation['messages'][number]; onRetry?
           <Icon name="alert" size={13} />
           <span>{m.error}</span>
           {onRetry && (
-            <button className="link" onClick={onRetry}>
-              Try again
-            </button>
+            <button className="link" onClick={onRetry}>{tr('Try again')}</button>
           )}
         </div>
       )}
       {!m.streaming && m.text && !m.error && (
         <div className="msg-tools">
-          <button className="icon-btn tiny" title="Copy" onClick={() => void window.kumo.copyText(m.text)}>
+          <button className="icon-btn tiny" title={tr('Copy')} onClick={() => void window.kumo.copyText(m.text)}>
             <Icon name="copy" size={12} />
           </button>
         </div>
@@ -109,7 +108,7 @@ export function Chat() {
     return window.kumo.onChat((e) => {
       const st = useChat.getState()
       if (e.type === 'start') {
-        const base = st.current && st.current.id === e.conversationId ? st.current : { id: e.conversationId, title: e.userMessage.text.slice(0, 48) || 'New chat', createdAt: Date.now(), updatedAt: Date.now(), messages: [], sessionKey: st.sessionKey || undefined }
+        const base = st.current && st.current.id === e.conversationId ? st.current : { id: e.conversationId, title: e.userMessage.text.slice(0, 48) || tr('New chat'), createdAt: Date.now(), updatedAt: Date.now(), messages: [], sessionKey: st.sessionKey || undefined }
         st.set({
           current: { ...base, messages: [...base.messages, e.userMessage, { id: e.assistantId, role: 'assistant', text: '', at: Date.now(), streaming: true }] },
           streaming: true,
@@ -150,7 +149,7 @@ export function Chat() {
   const send = async (text = c.draft): Promise<void> => {
     if (c.streaming) return
     if (!provider?.available) {
-      toast('Set up a model provider first', 'error')
+      toast(tr('Set up a model provider first'), 'error')
       return
     }
     if (!text.trim() && !attachments.length) return
@@ -160,7 +159,7 @@ export function Chat() {
     play('send')
     const r = await window.kumo.send({ conversationId: c.current?.id, text, attachments: atts, sessionKey: c.sessionKey || undefined, provider: c.provider, model: c.model })
     if (!r.ok) {
-      toast(r.error || 'Could not send', 'error')
+      toast(r.error || tr('Could not send'), 'error')
       c.set({ draft: text })
     }
     void window.kumo.setSettings({ chat: { ...(settings?.chat ?? ({} as never)), provider: c.provider, model: c.model } })
@@ -176,7 +175,7 @@ export function Chat() {
     const r = await window.kumo.captureWindow()
     setCapturing(false)
     if (r.ok && r.value) c.set({ attachments: [...useChat.getState().attachments, r.value.id] })
-    else toast(r.error || 'Capture failed', 'error')
+    else toast(r.error || tr('Capture failed'), 'error')
   }
 
   const pickFiles = async (): Promise<void> => {
@@ -196,10 +195,10 @@ export function Chat() {
   const noProvider = c.providers.length > 0 && !c.providers.some((p) => p.available)
 
   const suggestions: string[] = session
-    ? [`What is ${session.project} doing right now?`, 'Summarize the changes so far', 'What should I check before merging?']
+    ? [tr('What is {0} doing right now?', session.project), tr('Summarize the changes so far'), tr('What should I check before merging?')]
     : live.length
-      ? ['Summarize what my agents are doing', 'Which session needs me first?']
-      : ['Explain a concept in plain words', 'Review a snippet I paste']
+      ? [tr('Summarize what my agents are doing'), tr('Which session needs me first?')]
+      : [tr('Explain a concept in plain words'), tr('Review a snippet I paste')]
 
   return (
     <div className="chat">
@@ -207,20 +206,20 @@ export function Chat() {
         {chatDrag && (
           <motion.div className="chat-drop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.12 } }} transition={{ duration: 0.16 }}>
             <Icon name="image" size={18} />
-            <span>Drop to attach to this chat</span>
+            <span>{tr('Drop to attach to this chat')}</span>
           </motion.div>
         )}
       </AnimatePresence>
       <div className="chat-bar">
         {c.showHistory ? (
           <>
-            <IconButton icon="back" title="Back" onClick={() => c.set({ showHistory: false })} />
-            <span className="chat-title">History</span>
+            <IconButton icon="back" title={tr('Back')} onClick={() => c.set({ showHistory: false })} />
+            <span className="chat-title">{tr('History')}</span>
           </>
         ) : (
           <>
-            <IconButton icon="history" title="History" onClick={() => c.set({ showHistory: true })} />
-            <span className="chat-title">{c.current?.title || 'New chat'}</span>
+            <IconButton icon="history" title={tr('History')} onClick={() => c.set({ showHistory: true })} />
+            <span className="chat-title">{c.current?.title || tr('New chat')}</span>
           </>
         )}
         <span className="spacer" />
@@ -228,7 +227,7 @@ export function Chat() {
           <span className="chip session-chip" title={session.cwd}>
             <Icon name="link" size={12} />
             <span className="chip-name">{session.project}</span>
-            <button className="chip-x" title="Unlink session" onClick={() => c.set({ sessionKey: null })}>
+            <button className="chip-x" title={tr('Unlink session')} onClick={() => c.set({ sessionKey: null })}>
               <Icon name="close" size={10} />
             </button>
           </span>
@@ -237,21 +236,21 @@ export function Chat() {
           <Menu
             align="right"
             trigger={(_o, toggle) => (
-              <button className="chip ghost" onClick={toggle} title="Give the chat a session's context">
+              <button className="chip ghost" onClick={toggle} title={tr('Give the chat a session\'s context')}>
                 <Icon name="link" size={12} />
-                <span>Session</span>
+                <span>{tr('Session')}</span>
               </button>
             )}
             items={live.map((s) => ({ label: s.project, hint: s.phase, onClick: () => c.set({ sessionKey: s.key }) }))}
           />
         )}
-        <IconButton icon="plus" title="New chat" onClick={newChat} />
+        <IconButton icon="plus" title={tr('New chat')} onClick={newChat} />
       </div>
 
       {c.showHistory ? (
         <div className="history scroll">
           {c.conversations.length === 0 ? (
-            <div className="muted-note">No saved chats{settings?.privacy.keepChats ? '' : ' - history is turned off in Settings'}.</div>
+            <div className="muted-note">{settings?.privacy.keepChats ? tr('No saved chats.') : tr('No saved chats - history is turned off in Settings.')}</div>
           ) : (
             c.conversations.map((h) => (
               <div key={h.id} className={`history-row${c.current?.id === h.id ? ' on' : ''}`}>
@@ -268,7 +267,7 @@ export function Chat() {
                 </button>
                 <button
                   className="icon-btn tiny"
-                  title="Delete"
+                  title={tr('Delete')}
                   onClick={() =>
                     void window.kumo.deleteConversation(h.id).then(async () => {
                       if (c.current?.id === h.id) c.set({ current: null })
@@ -283,13 +282,9 @@ export function Chat() {
           )}
         </div>
       ) : noProvider ? (
-        <EmptyState title="Choose how Kumo thinks" body="Use Claude Code's sign-in, a local model (Ollama, LM Studio), or your own API key. Nothing is sent anywhere until you pick one.">
-          <Button kind="primary" icon="gear" onClick={() => window.kumo.openSettings('chat')}>
-            Set up chat
-          </Button>
-          <Button icon="refresh" onClick={() => void ensureProviders()}>
-            Check again
-          </Button>
+        <EmptyState title={tr('Choose how Kumo thinks')} body={tr('Use Claude Code\'s sign-in, a local model (Ollama, LM Studio), or your own API key. Nothing is sent anywhere until you pick one.')}>
+          <Button kind="primary" icon="gear" onClick={() => window.kumo.openSettings('chat')}>{tr('Set up chat')}</Button>
+          <Button icon="refresh" onClick={() => void ensureProviders()}>{tr('Check again')}</Button>
         </EmptyState>
       ) : (
         <div
@@ -302,7 +297,7 @@ export function Chat() {
         >
           {messages.length === 0 ? (
             <div className="chat-empty">
-              <div className="chat-empty-title">{session ? `Ask about ${session.project}` : 'Ask anything'}</div>
+              <div className="chat-empty-title">{session ? tr('Ask about {0}', session.project) : tr('Ask anything')}</div>
               <div className="suggestions">
                 {suggestions.map((sg) => (
                   <button key={sg} className="suggestion" onClick={() => void send(sg)}>
@@ -326,7 +321,7 @@ export function Chat() {
                   a.thumb ? (
                     <span key={a.id} className={`att-tile${a.missing ? ' missing' : ''}`} title={a.name}>
                       <img src={a.thumb} alt={a.name} onClick={() => a.path && void window.kumo.openFolder(a.path)} />
-                      <button className="tile-x" title="Remove" aria-label={`Remove ${a.name}`} onClick={() => c.set({ attachments: c.attachments.filter((x) => x !== a.id) })}>
+                      <button className="tile-x" title={tr('Remove')} aria-label={tr('Remove {0}', a.name)} onClick={() => c.set({ attachments: c.attachments.filter((x) => x !== a.id) })}>
                         <Icon name="close" size={9} strokeWidth={2} />
                       </button>
                     </span>
@@ -334,16 +329,16 @@ export function Chat() {
                     <span key={a.id} className={`chip${a.missing ? ' missing' : ''}`} title={a.path || a.name}>
                       <Icon name={kindIcon(a.kind)} size={12} />
                       <span className="chip-name">{a.name}</span>
-                      <button className="chip-x" title="Remove" onClick={() => c.set({ attachments: c.attachments.filter((x) => x !== a.id) })}>
+                      <button className="chip-x" title={tr('Remove')} onClick={() => c.set({ attachments: c.attachments.filter((x) => x !== a.id) })}>
                         <Icon name="close" size={10} />
                       </button>
                     </span>
                   ),
                 )}
                 {activeWin && !attachments.some((a) => a.kind === 'window') && (
-                  <button className="chip ghost" onClick={() => void capture()} disabled={capturing} title={`Attach a screenshot of ${activeWin.app}`}>
+                  <button className="chip ghost" onClick={() => void capture()} disabled={capturing} title={tr('Attach a screenshot of {0}', activeWin.app)}>
                     <Icon name={capturing ? 'refresh' : 'window'} size={12} />
-                    <span className="chip-name">{capturing ? 'Capturing…' : `${activeWin.app}${activeWin.title ? ` - ${activeWin.title}` : ''}`}</span>
+                    <span className="chip-name">{capturing ? tr('Capturing…') : `${activeWin.app}${activeWin.title ? ` - ${activeWin.title}` : ''}`}</span>
                   </button>
                 )}
               </motion.div>
@@ -352,11 +347,11 @@ export function Chat() {
           <div className="composer-box">
             <Menu
               up
-              trigger={(_o, toggle) => <IconButton icon="clip" title="Attach" onClick={toggle} />}
+              trigger={(_o, toggle) => <IconButton icon="clip" title={tr('Attach')} onClick={toggle} />}
               items={[
-                { label: 'Choose files…', icon: 'file', onClick: () => void pickFiles() },
-                { label: activeWin ? `Screenshot of ${activeWin.app}` : 'Screenshot of the screen', icon: 'window', onClick: () => void capture() },
-                ...(tray.length ? (['sep', { header: 'From your context' }] as const) : []),
+                { label: tr('Choose files…'), icon: 'file', onClick: () => void pickFiles() },
+                { label: activeWin ? tr('Screenshot of {0}', activeWin.app) : tr('Screenshot of the screen'), icon: 'window', onClick: () => void capture() },
+                ...(tray.length ? (['sep', { header: tr('From your context') }] as const) : []),
                 ...tray.slice(0, 6).map((t) => ({ label: t.name, icon: kindIcon(t.kind), onClick: () => c.set({ attachments: [...c.attachments, t.id] }) })),
               ]}
             />
@@ -364,7 +359,7 @@ export function Chat() {
               ref={inputRef}
               className="composer-input"
               rows={1}
-              placeholder={session ? `Ask about ${session.project}…` : 'Ask Kumo…'}
+              placeholder={session ? tr('Ask about {0}…', session.project) : tr('Ask Kumo…')}
               value={c.draft}
               onChange={(e) => c.set({ draft: e.target.value })}
               onKeyDown={(e) => {
@@ -387,14 +382,14 @@ export function Chat() {
               up
               align="right"
               trigger={(_o, toggle) => (
-                <button className="model-chip" onClick={toggle} title="Model">
+                <button className="model-chip" onClick={toggle} title={tr('Model')}>
                   {provider && <ProviderLogo provider={provider.id} size={13} />}
-                  <span>{provider ? `${provider.name}${model ? ` · ${model.name}` : ''}` : 'Choose model'}</span>
+                  <span>{provider ? `${provider.name}${model ? ` · ${model.name}` : ''}` : tr('Choose model')}</span>
                   <Icon name="down" size={11} />
                 </button>
               )}
               items={[
-                { header: 'Provider' },
+                { header: tr('Provider') },
                 ...c.providers
                   .filter((p) => p.available)
                   .map((p) => ({
@@ -404,17 +399,17 @@ export function Chat() {
                     checked: p.id === c.provider,
                     onClick: () => void ensureModels(p.id),
                   })),
-                { label: 'More providers…', icon: 'plus' as const, onClick: () => window.kumo.openSettings('chat') },
-                ...(models.length ? (['sep', { header: 'Model' }] as const) : []),
+                { label: tr('More providers…'), icon: 'plus' as const, onClick: () => window.kumo.openSettings('chat') },
+                ...(models.length ? (['sep', { header: tr('Model') }] as const) : []),
                 ...models.slice(0, 14).map((m) => ({ label: m.name, checked: m.id === c.model, onClick: () => c.set({ model: m.id }) })),
               ]}
             />
             {c.streaming ? (
-              <button className="send-btn stop" title="Stop" onClick={() => c.current && void window.kumo.stop(c.current.id)}>
+              <button className="send-btn stop" title={tr('Stop')} onClick={() => c.current && void window.kumo.stop(c.current.id)}>
                 <Icon name="stop" size={12} />
               </button>
             ) : (
-              <button className="send-btn" title="Send (Enter)" disabled={!c.draft.trim() && !attachments.length} onClick={() => void send()}>
+              <button className="send-btn" title={tr('Send (Enter)')} disabled={!c.draft.trim() && !attachments.length} onClick={() => void send()}>
                 <Icon name="send" size={14} strokeWidth={1.8} />
               </button>
             )}

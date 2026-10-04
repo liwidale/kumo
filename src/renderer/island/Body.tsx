@@ -1,3 +1,4 @@
+import { tr } from '../shared/i18n'
 import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import type { ActiveWindow, Mood } from '../../shared/types'
@@ -59,9 +60,9 @@ function Header() {
         value={tab}
         onChange={(t) => open(t, { reset: true })}
         options={[
-          { value: 'home', label: 'Sessions', badge: live || undefined },
-          { value: 'chat', label: 'Chat' },
-          { value: 'context', label: 'Context', badge: ctx || undefined },
+          { value: 'home', label: tr('Sessions'), badge: live || undefined },
+          { value: 'chat', label: tr('Chat') },
+          { value: 'context', label: tr('Context'), badge: ctx || undefined },
         ]}
       />
       <div className="header-actions">
@@ -69,11 +70,11 @@ function Header() {
           <button
             type="button"
             className="back-to"
-            title={`Back to ${from.app}${from.title ? ` - ${from.title}` : ''}`}
+            title={tr('Back to {0}{1}', from.app, from.title ? ` - ${from.title}` : '')}
             onClick={() =>
               void window.kumo.returnToWindow().then((r) => {
                 if (r.ok) collapse()
-                else showToast(r.error || 'That window is gone', 'error')
+                else showToast(r.error || tr('That window is gone'), 'error')
               })
             }
           >
@@ -81,8 +82,8 @@ function Header() {
             <span>{from.app}</span>
           </button>
         )}
-        <IconButton icon="plus" title="New session (Ctrl/⌘ N)" onClick={() => open('launch')} />
-        <IconButton icon="gear" title="Settings" onClick={() => window.kumo.openSettings()} />
+        <IconButton icon="plus" title={tr('New session (Ctrl/⌘ N)')} onClick={() => open('launch')} />
+        <IconButton icon="gear" title={tr('Settings')} onClick={() => window.kumo.openSettings()} />
       </div>
     </div>
   )

@@ -1,11 +1,13 @@
+import { tr } from './i18n'
 import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, screen, shell } from 'electron'
 import { fileURLToPath } from 'node:url'
-import type { ChatAttachment, ChatSendRequest, Decision, IntegrationId, LaunchRequest, Settings, SettingsSection } from '../shared/types'
+import type { ChatAttachment, ChatSendRequest, Decision, HookPreview, LaunchRequest, Settings, SettingsSection } from '../shared/types'
 import { descriptors } from './agents/adapters'
+import { asks } from './asks'
 import { chat } from './chat/chat'
 import { listModels, listProviders } from './chat/providers'
 import { context } from './context'
-import { detectInstalled } from './detect'
+import { detectInstalled, invalidateDetect } from './detect'
 import { gitDiff, gitInfo, revertFile } from './git'
 import { history } from './history'
 import { serverState } from './hookServer'
@@ -16,6 +18,8 @@ import { hasSecret, setSecret } from './secrets'
 import { sessions } from './sessions'
 import { settings } from './settings'
 import { openSettings, settingsWindow } from './settingsWindow'
+import { hideLauncher, launcherWindow, setLauncherHeight } from './launcher'
+import { updater } from './updater'
 import { dataDir, debounce, exists, log } from './util'
 
 
@@ -64,15 +68,21 @@ export function snapshot() {
     serverError: serverState.error,
     version: app.getVersion(),
     limits: sessions.limits(),
+    asks: asks.list(),
+    update: updater.state,
   }
 }
 
 function windows(): BrowserWindow[] {
-  return [islandWindow(), settingsWindow()].filter((w): w is BrowserWindow => !!w && !w.isDestroyed())
+  return [islandWindow(), settingsWindow(), launcherWindow()].filter((w): w is BrowserWindow => !!w && !w.isDestroyed())
 }
 
 export function broadcast(channel: string, payload: unknown): void {
   for (const w of windows()) w.webContents.send(channel, payload)
+}
+
+export function reloadWindows(): void {
+  for (const w of windows()) w.webContents.reload()
 }
 
 export const pushSnapshot = debounce(() => broadcast('snapshot', snapshot()), 50)
@@ -104,16 +114,16 @@ export function registerIpc(): void {
   })
 
   ipcMain.handle('approval:decide', (_e, d: Decision) => {
-    if (!d || typeof d.id !== 'string' || (d.behavior !== 'allow' && d.behavior !== 'deny')) return { ok: false, error: 'Invalid decision' }
+    if (!d || typeof d.id !== 'string' || (d.behavior !== 'allow' && d.behavior !== 'deny')) return { ok: false, error: tr('Invalid decision') }
     const ok = sessions.decide({ id: d.id, behavior: d.behavior, remember: typeof d.remember === 'string' ? d.remember : undefined, message: str(d.message, 500) || undefined })
-    return ok ? { ok: true } : { ok: false, error: 'That request is no longer waiting - it was answered or cancelled.' }
+    return ok ? { ok: true } : { ok: false, error: tr('That request is no longer waiting - it was answered or cancelled.') }
   })
   ipcMain.handle('session:jump', async (_e, key: string) => {
     const s = sessions.get(str(key))
-    if (!s) return { ok: false, error: 'That session is gone.' }
+    if (!s) return { ok: false, error: tr('That session is gone.') }
     return jumpTo(s)
   })
-  ipcMain.handle('session:queue', (_e, key: string, text: string) => (sessions.queue(str(key), str(text, 4000)) ? { ok: true } : { ok: false, error: 'That session is gone.' }))
+  ipcMain.handle('session:queue', (_e, key: string, text: string) => (sessions.queue(str(key), str(text, 4000)) ? { ok: true } : { ok: false, error: tr('That session is gone.') }))
   ipcMain.handle('session:unqueue', (_e, key: string, index: number) => sessions.unqueue(str(key), Number(index) || 0))
   ipcMain.handle('session:stop', (_e, key: string, force?: boolean) => sessions.requestStop(str(key), force === true))
   ipcMain.handle('git:revert', (_e, cwd: string, p: string) => revertFile(str(cwd), str(p, 4096)))
@@ -168,7 +178,7 @@ export function registerIpc(): void {
   ipcMain.handle('context:remove', (_e, id: string) => context.remove(str(id)))
   ipcMain.handle('context:clear', () => context.clear())
   ipcMain.handle('context:bind', (_e, ids: string[], key: string | null) => {
-    if (key && !sessions.get(key)) return { ok: false, error: 'That session is gone.' }
+    if (key && !sessions.get(key)) return { ok: false, error: tr('That session is gone.') }
     context.bind(Array.isArray(ids) ? ids.map((x) => str(x)) : [], key ? str(key) : null)
     sessions.refreshContextCounts()
     return { ok: true }
@@ -207,8 +217,8 @@ export function registerIpc(): void {
   ipcMain.handle('chat:stop', (_e, id: string) => chat.stop(str(id)))
 
   ipcMain.handle('integrations', () => integrations.allStatus())
-  ipcMain.handle('hooks:preview', (_e, id: IntegrationId | 'claude-limits', install: boolean) => {
-    if (id !== 'claude-limits' && !integrations.INTEGRATIONS.includes(id)) return { ok: false, error: 'Unknown integration' }
+  ipcMain.handle('hooks:preview', (_e, id: HookPreview['integration'], install: boolean) => {
+    if (!integrations.validTarget(id)) return { ok: false, error: tr('Unknown integration') }
     try {
       integrations.ensureRelay()
       return { ok: true, value: integrations.preview(id, Boolean(install)) }
@@ -216,8 +226,16 @@ export function registerIpc(): void {
       return { ok: false, error: (e as Error).message }
     }
   })
-  ipcMain.handle('hooks:apply', (_e, id: IntegrationId | 'claude-limits', install: boolean, fp: string) => {
-    if (id !== 'claude-limits' && !integrations.INTEGRATIONS.includes(id)) return { ok: false, error: 'Unknown integration' }
+  ipcMain.handle('mcp:status', () => integrations.mcpStatus())
+  ipcMain.handle('ask:answer', (_e, askId: string, text: string | null) => (asks.answer(str(askId), text === null ? null : str(text, 2000)) ? { ok: true } : { ok: false, error: tr('That question is no longer waiting.') }))
+  ipcMain.handle('updates:check', () => updater.check())
+  ipcMain.handle('updates:install', () => updater.install())
+  ipcMain.handle('detect:refresh', () => {
+    invalidateDetect()
+    return detectInstalled()
+  })
+  ipcMain.handle('hooks:apply', (_e, id: HookPreview['integration'], install: boolean, fp: string) => {
+    if (!integrations.validTarget(id)) return { ok: false, error: tr('Unknown integration') }
     try {
       const backup = integrations.apply(id, Boolean(install), str(fp))
       pushSnapshot()
@@ -240,7 +258,7 @@ export function registerIpc(): void {
 
   ipcMain.handle('displays', () => {
     const primary = screen.getPrimaryDisplay().id
-    return screen.getAllDisplays().map((d, i) => ({ id: String(d.id), label: d.label || `Display ${i + 1}`, primary: d.id === primary }))
+    return screen.getAllDisplays().map((d, i) => ({ id: String(d.id), label: d.label || tr('Display {0}', i + 1), primary: d.id === primary }))
   })
   ipcMain.on('app:settings', (_e, section?: SettingsSection) => {
     send({ type: 'collapse' })
@@ -255,6 +273,10 @@ export function registerIpc(): void {
     chat.clearAll()
     context.purge()
     history.clearAll()
+  })
+  ipcMain.on('launcher:hide', () => hideLauncher())
+  ipcMain.on('launcher:height', (_e, h: number) => {
+    if (typeof h === 'number' && Number.isFinite(h)) setLauncherHeight(h)
   })
   ipcMain.on('app:quit', () => app.quit())
   ipcMain.on('app:test-sound', () => islandWindow()?.webContents.send('island:test-sound'))

@@ -1,14 +1,15 @@
 import type { Mood, Phase, Session, Snapshot } from '../../shared/types'
+import { tr } from './i18n'
 
 export function ago(t: number, now = Date.now()): string {
   const s = Math.max(0, Math.round((now - t) / 1000))
-  if (s < 5) return 'now'
-  if (s < 60) return `${s}s`
+  if (s < 5) return tr('now')
+  if (s < 60) return tr('{0}s', s)
   const m = Math.floor(s / 60)
-  if (m < 60) return `${m}m`
+  if (m < 60) return tr('{0}m', m)
   const h = Math.floor(m / 60)
-  if (h < 24) return `${h}h`
-  return `${Math.floor(h / 24)}d`
+  if (h < 24) return tr('{0}h', h)
+  return tr('{0}d', Math.floor(h / 24))
 }
 
 export function clock(ms: number): string {
@@ -37,14 +38,14 @@ export function shortPath(p: string, cwd?: string): string {
 }
 
 export const PHASE_LABEL: Record<Phase, string> = {
-  idle: 'Ready',
-  thinking: 'Thinking',
-  working: 'Working',
-  waiting: 'Needs you',
-  question: 'Has a question',
-  done: 'Done',
-  error: 'Stopped',
-  ended: 'Ended',
+  idle: tr('Ready'),
+  thinking: tr('Thinking'),
+  working: tr('Working'),
+  waiting: tr('Needs you'),
+  question: tr('Has a question'),
+  done: tr('Done'),
+  error: tr('Stopped'),
+  ended: tr('Ended'),
 }
 
 export function phaseTone(p: Phase): 'blue' | 'violet' | 'amber' | 'green' | 'red' | 'muted' {
@@ -68,21 +69,21 @@ export function phaseTone(p: Phase): 'blue' | 'violet' | 'amber' | 'green' | 're
 export function activityLine(s: Session): string {
   switch (s.phase) {
     case 'working':
-      return s.current ? `${s.current.verb}${s.current.target ? ` ${s.current.target}` : ''}` : 'Working'
+      return s.current ? `${s.current.verb}${s.current.target ? ` ${s.current.target}` : ''}` : tr('Working')
     case 'thinking':
-      return s.toolCount ? 'Thinking about the next step' : 'Thinking'
+      return s.toolCount ? tr('Thinking about the next step') : tr('Thinking')
     case 'waiting':
-      return s.notice || 'Waiting for your approval'
+      return s.notice || tr('Waiting for your approval')
     case 'question':
-      return s.question?.text || 'Has a question for you'
+      return s.question?.text || tr('Has a question for you')
     case 'done':
-      return s.summary ? firstSentence(s.summary) : 'Finished'
+      return s.summary ? firstSentence(s.summary) : tr('Finished')
     case 'error':
-      return s.notice || 'Stopped with an error'
+      return s.notice || tr('Stopped with an error')
     case 'ended':
-      return s.notice || 'Session ended'
+      return s.notice || tr('Session ended')
     default:
-      return s.notice || (s.task ? 'Waiting for your next prompt' : 'Ready')
+      return s.notice || (s.task ? tr('Waiting for your next prompt') : tr('Ready'))
   }
 }
 

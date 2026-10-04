@@ -20,7 +20,6 @@ export interface Insets {
 
 export interface ObjC {
   cls(name: string): Ptr
-  /** Sends a message only if the receiver implements it, so a selector Apple drops returns null instead of crashing. */
   send(obj: Ptr, name: string, ...args: unknown[]): Ptr | null
   int(obj: Ptr, name: string): number | null
   count(obj: Ptr): number
@@ -28,7 +27,6 @@ export interface ObjC {
   rect(obj: Ptr, name: string): Rect | null
   insets(obj: Ptr, name: string): Insets | null
   nsString(s: string): Ptr
-  /** Runs fn inside an autorelease pool so temporaries are freed right away. */
   pool<T>(fn: () => T): T
   cg: { windowList(option: number): Ptr; release(p: Ptr): void }
 }
@@ -47,7 +45,6 @@ export function objc(): ObjC | null {
     const cgLib = koffi.load('/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics')
     const RectT = koffi.struct('KumoNSRect', { x: 'double', y: 'double', w: 'double', h: 'double' })
     const InsetsT = koffi.struct('KumoNSEdgeInsets', { top: 'double', left: 'double', bottom: 'double', right: 'double' })
-    // On x86_64, structs larger than 16 bytes come back through objc_msgSend_stret.
     const msgStruct = process.arch === 'x64' ? 'objc_msgSend_stret' : 'objc_msgSend'
     const getClass = lib.func('void *objc_getClass(const char *name)') as Fn
     const selReg = lib.func('void *sel_registerName(const char *name)') as Fn

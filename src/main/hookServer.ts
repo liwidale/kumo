@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { validAgent, type HookEnvelope } from './agents/adapters'
+import { asks } from './asks'
 import { sessions } from './sessions'
 import { ensureDir, kumoHome, log, writeJson } from './util'
 
@@ -37,7 +38,7 @@ async function onRequest(req: http.IncomingMessage, res: http.ServerResponse): P
   const url = new URL(req.url || '/', 'http://127.0.0.1')
 
   if (req.method === 'GET' && url.pathname === '/v1/health') return json(res, 200, JSON.stringify({ app: 'kumo', ok: true }))
-  if (req.method !== 'POST' || url.pathname !== '/v1/hook') return json(res, 404, '{"error":"not found"}')
+  if (req.method !== 'POST' || (url.pathname !== '/v1/hook' && url.pathname !== '/v1/mcp')) return json(res, 404, '{"error":"not found"}')
   if (!tokenOk(req.headers['x-kumo-token'])) return json(res, 401, '{"error":"unauthorized"}')
 
   const chunks: Buffer[] = []
@@ -53,6 +54,7 @@ async function onRequest(req: http.IncomingMessage, res: http.ServerResponse): P
   } catch {
     return json(res, 400, '{"error":"bad json"}')
   }
+  if (url.pathname === '/v1/mcp') return onMcp(res, body)
   const payload = (body.payload && typeof body.payload === 'object' ? body.payload : {}) as Record<string, unknown>
   const agentRaw = String(body.agent || payload.kumo_agent || '')
   const env: HookEnvelope = {
@@ -87,6 +89,34 @@ async function onRequest(req: http.IncomingMessage, res: http.ServerResponse): P
     log('hook handling failed', e)
     if (!res.destroyed) json(res, 200, '')
   }
+}
+
+async function onMcp(res: http.ServerResponse, body: Record<string, unknown>): Promise<void> {
+  const ctx = (body.context && typeof body.context === 'object' ? body.context : {}) as Record<string, unknown>
+  const ancestors = Array.isArray(ctx.ancestors)
+    ? (ctx.ancestors as unknown[])
+        .map((a) => a as Record<string, unknown>)
+        .filter((a) => a && typeof a.pid === 'number')
+        .map((a) => ({ pid: a.pid as number, name: String(a.name || '') }))
+        .slice(0, 16)
+    : []
+  let cancel: (() => void) | null = null
+  let finished = false
+  res.on('close', () => {
+    if (!finished) cancel?.()
+  })
+  const reply = await asks.handle(
+    {
+      tool: String(body.tool || ''),
+      arguments: (body.arguments && typeof body.arguments === 'object' ? body.arguments : {}) as Record<string, unknown>,
+      context: { ancestors, cwd: String(ctx.cwd || ''), agent: String(ctx.agent || '') },
+    },
+    (c) => {
+      cancel = c
+    },
+  )
+  finished = true
+  if (!res.destroyed) json(res, 200, JSON.stringify(reply))
 }
 
 function listen(port: number): Promise<number> {

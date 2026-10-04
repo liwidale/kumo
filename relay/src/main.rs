@@ -1,8 +1,8 @@
 
 use std::collections::HashMap;
-use std::io::{Read, Write};
+use std::io::{BufRead, Read, Write};
 use std::net::{SocketAddr, TcpStream};
-use std::sync::mpsc;
+use std::sync::{mpsc, Arc, Mutex};
 use std::time::Duration;
 
 use serde_json::{Map, Value};
@@ -26,9 +26,15 @@ const ENV_KEYS: &[&str] = &[
     "GEMINI_SESSION_ID",
     "CODEX_SANDBOX",
     "CURSOR_TRACE_ID",
+    "COPILOT_SESSION_ID",
+    "QWEN_CODE",
+    "KIRO_SESSION_ID",
 ];
 
 fn main() {
+    if std::env::args().any(|a| a == "--mcp") {
+        mcp();
+    }
     let tee = std::env::args().any(|a| a == "--tee");
     if std::env::var_os("KUMO_INTERNAL").is_some() && !tee {
         std::process::exit(0);
@@ -76,7 +82,10 @@ fn main() {
     truncate(&mut payload);
 
     let waits = event == "PermissionRequest"
+        || event == "permissionRequest"
         || (agent == "antigravity" && event == "PreToolUse")
+        || (agent == "windsurf" && matches!(event.as_str(), "pre_run_command" | "pre_write_code" | "pre_mcp_tool_use"))
+        || (agent == "kiro" && (event == "PreToolUse" || event == "preToolUse"))
         || (agent == "gemini" && event == "BeforeTool")
         || (agent == "cursor" && (event == "beforeShellExecution" || event == "beforeMCPExecution"));
     let budget = if waits { DECISION_BUDGET } else if tee { Duration::from_millis(800) } else { QUICK_BUDGET };
@@ -120,6 +129,22 @@ fn main() {
 }
 
 fn finish(out: &str) -> ! {
+    if out.starts_with('{') && out.contains("__kumo_exit") {
+        if let Ok(v) = serde_json::from_str::<Value>(out) {
+            let code = v.get("__kumo_exit").and_then(Value::as_i64).unwrap_or(0) as i32;
+            if let Some(text) = v.get("stdout").and_then(Value::as_str).filter(|t| !t.is_empty()) {
+                let mut stdout = std::io::stdout();
+                let _ = writeln!(stdout, "{text}");
+                let _ = stdout.flush();
+            }
+            if let Some(text) = v.get("stderr").and_then(Value::as_str).filter(|t| !t.is_empty()) {
+                let mut stderr = std::io::stderr();
+                let _ = writeln!(stderr, "{text}");
+                let _ = stderr.flush();
+            }
+            std::process::exit(code);
+        }
+    }
     if !out.is_empty() {
         let mut stdout = std::io::stdout();
         let _ = writeln!(stdout, "{out}");
@@ -149,6 +174,12 @@ fn parse_args() -> (String, String) {
     }
     if agent == "gemini-cli" {
         agent = "gemini".into();
+    }
+    if agent == "copilot-cli" || agent == "github-copilot" {
+        agent = "copilot".into();
+    }
+    if agent == "qwen-code" {
+        agent = "qwen".into();
     }
     (agent, event)
 }
@@ -184,13 +215,17 @@ fn runtime() -> Option<(u16, String)> {
 }
 
 fn post(port: u16, token: &str, body: &str, budget: Duration) -> Option<String> {
+    post_to("/v1/hook", port, token, body, budget)
+}
+
+fn post_to(path: &str, port: u16, token: &str, body: &str, budget: Duration) -> Option<String> {
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
     let mut stream = TcpStream::connect_timeout(&addr, CONNECT_TIMEOUT).ok()?;
     let _ = stream.set_nodelay(true);
     stream.set_write_timeout(Some(Duration::from_secs(3))).ok()?;
     stream.set_read_timeout(Some(budget)).ok()?;
     let req = format!(
-        "POST /v1/hook HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nX-Kumo-Token: {token}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        "POST {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nX-Kumo-Token: {token}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
         body.len()
     );
     stream.write_all(req.as_bytes()).ok()?;
@@ -206,6 +241,114 @@ fn post(port: u16, token: &str, body: &str, budget: Duration) -> Option<String> 
     Some(rest.to_string())
 }
 
+
+fn mcp_tools() -> Value {
+    serde_json::json!([
+        {
+            "name": "ask_user",
+            "description": "Ask the person at the computer a question through Kumo, a small window at the top of their screen, and wait for the answer. Use it when you need a decision, a choice between approaches or a confirmation and the person may not be watching this conversation. Offer up to four short options when you can. Returns the answer as text.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "question": { "type": "string", "description": "The question, in one or two short sentences." },
+                    "options": { "type": "array", "items": { "type": "string" }, "maxItems": 4, "description": "Short answers that can be picked with one click." },
+                    "allow_text": { "type": "boolean", "description": "Allow a typed answer as well. Defaults to true." }
+                },
+                "required": ["question"]
+            }
+        },
+        {
+            "name": "notify_user",
+            "description": "Show a short notification in Kumo at the top of the screen, for example when a long task is finished or you are blocked and need attention. Does not wait for a reply.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "message": { "type": "string", "description": "What happened, in one sentence." },
+                    "title": { "type": "string", "description": "Optional short title." }
+                },
+                "required": ["message"]
+            }
+        }
+    ])
+}
+
+fn mcp() -> ! {
+    let out = Arc::new(Mutex::new(std::io::stdout()));
+    let send = |out: &Arc<Mutex<std::io::Stdout>>, v: Value| {
+        if let Ok(mut o) = out.lock() {
+            let _ = writeln!(o, "{v}");
+            let _ = o.flush();
+        }
+    };
+    let (ancestors, _) = ancestry();
+    let cwd = std::env::current_dir().map(|p| p.to_string_lossy().to_string()).unwrap_or_default();
+    let mut env = Map::new();
+    for k in ENV_KEYS {
+        if let Ok(v) = std::env::var(k) {
+            env.insert((*k).into(), Value::String(v.chars().take(300).collect()));
+        }
+    }
+    let agent = std::env::args().skip_while(|a| a != "--agent").nth(1).unwrap_or_default();
+    let context = Arc::new(serde_json::json!({ "ancestors": ancestors, "cwd": cwd, "env": env, "agent": agent }));
+    let mut calls = Vec::new();
+    let stdin = std::io::stdin();
+    for line in stdin.lock().lines() {
+        let Ok(line) = line else { break };
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let Ok(msg) = serde_json::from_str::<Value>(line) else { continue };
+        let method = msg.get("method").and_then(Value::as_str).unwrap_or("").to_string();
+        let Some(id) = msg.get("id").cloned() else { continue };
+        match method.as_str() {
+            "initialize" => {
+                let version = msg.pointer("/params/protocolVersion").and_then(Value::as_str).unwrap_or("2025-06-18").to_string();
+                send(&out, serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "result": {
+                        "protocolVersion": version,
+                        "capabilities": { "tools": { "listChanged": false } },
+                        "serverInfo": { "name": "kumo", "version": env!("CARGO_PKG_VERSION") },
+                        "instructions": "Kumo shows your questions and notifications at the top of the screen. Use ask_user when you need a decision and notify_user when something needs attention."
+                    }
+                }));
+            }
+            "ping" => send(&out, serde_json::json!({ "jsonrpc": "2.0", "id": id, "result": {} })),
+            "tools/list" => send(&out, serde_json::json!({ "jsonrpc": "2.0", "id": id, "result": { "tools": mcp_tools() } })),
+            "tools/call" => {
+                let out = Arc::clone(&out);
+                let context = Arc::clone(&context);
+                let params = msg.get("params").cloned().unwrap_or(Value::Null);
+                calls.push(std::thread::spawn(move || {
+                    let tool = params.get("name").and_then(Value::as_str).unwrap_or("").to_string();
+                    let args = params.get("arguments").cloned().unwrap_or(Value::Object(Map::new()));
+                    let budget = if tool == "ask_user" { DECISION_BUDGET } else { QUICK_BUDGET };
+                    let body = serde_json::json!({ "tool": tool, "arguments": args, "context": *context }).to_string();
+                    let reply = runtime().and_then(|(port, token)| post_to("/v1/mcp", port, &token, &body, budget));
+                    let (text, error) = match reply.and_then(|r| serde_json::from_str::<Value>(r.trim()).ok()) {
+                        Some(v) => (
+                            v.get("text").and_then(Value::as_str).unwrap_or("").to_string(),
+                            v.get("isError").and_then(Value::as_bool).unwrap_or(false),
+                        ),
+                        None => ("Kumo is not running right now. Ask in this conversation instead.".to_string(), true),
+                    };
+                    let result = serde_json::json!({ "content": [{ "type": "text", "text": text }], "isError": error });
+                    if let Ok(mut o) = out.lock() {
+                        let _ = writeln!(o, "{}", serde_json::json!({ "jsonrpc": "2.0", "id": id, "result": result }));
+                        let _ = o.flush();
+                    }
+                }));
+            }
+            _ => send(&out, serde_json::json!({ "jsonrpc": "2.0", "id": id, "error": { "code": -32601, "message": "Method not found" } })),
+        }
+    }
+    for call in calls {
+        let _ = call.join();
+    }
+    std::process::exit(0)
+}
 
 #[cfg(windows)]
 fn ancestry() -> (Vec<Value>, Option<String>) {

@@ -1,3 +1,4 @@
+import { tr } from '../../shared/i18n'
 import { useEffect, useState } from 'react'
 import { base } from '../../shared/format'
 import { highlightLines, langFromPath } from '../../shared/syntax'
@@ -69,7 +70,7 @@ export function DiffLines({ text, max = 400, path }: { text: string; max?: numbe
           </div>
         )
       })}
-      {lines.length > max && <div className="dl hunk">… {lines.length - max} more lines</div>}
+      {lines.length > max && <div className="dl hunk">… {tr('{0} more line|{0} more lines', lines.length - max)}</div>}
     </pre>
   )
 }
@@ -85,13 +86,13 @@ export function DiffView() {
   useEffect(() => {
     if (!diff) return
     setText(null)
-    void window.kumo.gitDiff(diff.cwd, diff.path).then((r) => (r.ok ? setText(r.value || '') : setErr(r.error || 'Could not read the diff')))
+    void window.kumo.gitDiff(diff.cwd, diff.path).then((r) => (r.ok ? setText(r.value || '') : setErr(r.error || tr('Could not read the diff'))))
   }, [diff])
   if (!diff) return null
   return (
     <div className="diff-view">
       <div className="detail-head">
-        <IconButton icon="back" title="Back (Esc)" onClick={back} />
+        <IconButton icon="back" title={tr('Back (Esc)')} onClick={back} />
         <div className="detail-title">
           <div className="detail-project">{base(diff.path)}</div>
           <div className="detail-sub mono">{diff.path}</div>
@@ -99,7 +100,7 @@ export function DiffView() {
         <Button
           kind={confirm ? 'danger' : 'ghost'}
           icon="refresh"
-          title="Put this file back the way it is in the last commit"
+          title={tr('Put this file back the way it is in the last commit')}
           onClick={() => {
             if (!confirm) {
               setConfirm(true)
@@ -107,18 +108,16 @@ export function DiffView() {
               return
             }
             void window.kumo.revertFile(diff.cwd, diff.path).then((r) => {
-              toast(r.ok ? `${base(diff.path)} is back to the last commit` : r.error || 'Could not revert', r.ok ? 'success' : 'error')
+              toast(r.ok ? tr('{0} is back to the last commit', base(diff.path)) : r.error || tr('Could not revert'), r.ok ? 'success' : 'error')
               if (r.ok) back()
             })
           }}
         >
-          {confirm ? 'Revert?' : 'Revert'}
+          {confirm ? tr('Revert?') : tr('Revert')}
         </Button>
-        <Button icon="edit" onClick={() => void act(window.kumo.openInEditor(diff.path, diff.cwd))}>
-          Open
-        </Button>
+        <Button icon="edit" onClick={() => void act(window.kumo.openInEditor(diff.path, diff.cwd))}>{tr('Open')}</Button>
       </div>
-      <div className="diff-scroll scroll">{err ? <div className="muted-note">{err}</div> : text === null ? <div className="muted-note shimmer">Loading diff…</div> : <DiffLines text={text} path={diff.path} />}</div>
+      <div className="diff-scroll scroll">{err ? <div className="muted-note">{err}</div> : text === null ? <div className="muted-note shimmer">{tr('Loading diff…')}</div> : <DiffLines text={text} path={diff.path} />}</div>
     </div>
   )
 }

@@ -1,3 +1,4 @@
+import { tr } from '../shared/i18n'
 import { AnimatePresence, motion, type Transition } from 'motion/react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { DisplayInfo, Mood } from '../../shared/types'
@@ -97,7 +98,7 @@ export function App() {
   }, [])
 
   const live = liveSessions(snap)
-  const approvals = snap?.approvals.length ?? 0
+  const approvals = (snap?.approvals.length ?? 0) + (snap?.asks?.length ?? 0)
   const now = useNow(1000, live.length > 0)
 
   const baseLevel: Level = live.length || approvals ? 'active' : settings?.idle === 'hide' ? 'hidden' : 'idle'
@@ -167,10 +168,10 @@ export function App() {
   }, [set])
 
   useEffect(() => {
-    return window.kumo.onAlert(({ kind, sessionKey }) => {
+    return window.kumo.onAlert(({ kind, sessionKey, note }) => {
       const s = useIsland.getState()
       const paused = s.settings?.paused
-      if (kind === 'approval') {
+      if (kind === 'approval' || kind === 'ask') {
         if (!paused) {
           if (s.view !== 'approval' || s.override !== 'open') s.open('approval')
           play('approval')
@@ -191,9 +192,9 @@ export function App() {
       } else if (kind === 'error') play('error')
       else play('attention')
       if (s.override === 'open') return
-      s.set({ override: 'notify', notify: { key: sessionKey, kind } })
+      s.set({ override: 'notify', notify: { key: sessionKey, kind, note } })
       if (notifyTimer.current) clearTimeout(notifyTimer.current)
-      const ms = kind === 'done' ? 6000 : kind === 'error' ? 9000 : 20000
+      const ms = kind === 'done' ? 6000 : kind === 'error' ? 9000 : kind === 'message' ? 12000 : 20000
       notifyTimer.current = setTimeout(function expire() {
         const cur = useIsland.getState()
         if (cur.override !== 'notify') return
@@ -222,10 +223,10 @@ export function App() {
       switch (c.type) {
         case 'toggle':
           if (s.override === 'open') s.collapse()
-          else s.open(s.snap?.approvals.length ? 'approval' : s.view === 'drop' ? 'home' : undefined, { focus: true })
+          else s.open(s.snap?.approvals.length || s.snap?.asks?.length ? 'approval' : s.view === 'drop' ? 'home' : undefined, { focus: true })
           break
         case 'expand':
-          s.open(s.settings && !s.settings.onboarded ? 'welcome' : s.snap?.approvals.length ? 'approval' : undefined, { focus: s.settings?.onboarded !== false })
+          s.open(s.settings && !s.settings.onboarded ? 'welcome' : s.snap?.approvals.length || s.snap?.asks?.length ? 'approval' : undefined, { focus: s.settings?.onboarded !== false })
           break
         case 'collapse':
           s.collapse()
@@ -425,7 +426,7 @@ export function App() {
       c.set({ attachments: [...c.attachments, ...items.map((i) => i.id).filter((id) => !c.attachments.includes(id))] })
     }
     s.set({ view: back, pinned: true })
-    if (!items.length) s.showToast('Those files could not be read', 'error')
+    if (!items.length) s.showToast(tr('Those files could not be read'), 'error')
   }
 
   if (!d || !geo) return null

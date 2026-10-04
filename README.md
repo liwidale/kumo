@@ -19,7 +19,7 @@
   <img src=".github/assets/demo.gif" width="720" alt="Kumo showing all agent sessions, an approval request, files dropped in as context and an agent finishing its work">
 </p>
 
-Running Claude Code in one window, Antigravity in another and Codex somewhere else? Kumo puts all of them in one place. It shows what every agent is doing, lets you approve their requests from wherever you are, and tells you when one of them is done or needs you.
+Running Claude Code in one window, Copilot CLI in another and Cursor somewhere else? Kumo puts all of them in one place. It shows what every agent is doing, lets you approve their requests from wherever you are, and tells you when one of them is done or needs you.
 
 ## Download
 
@@ -38,21 +38,34 @@ Kumo is free and open source.
 - **Approve from anywhere.** When an agent wants to run a command or edit a file, the request appears on top of whatever you are doing. Allow it, deny it, allow it for the rest of the session or turn your answer into a rule.
 - **Hand over context in one drop.** Drag files, folders, screenshots or a whole window onto Kumo, and they go to the agent you choose on its next turn.
 - **Talk back.** Answer an agent's question, queue your next message for when it finishes, or stop it.
+- **Questions with answer buttons.** Kumo is also an MCP server. Agents can ask you something with a few one-click answers right in the island, or leave you a short note when a long task is done.
+- **Start a task from anywhere.** Press the quick launch shortcut, type what you want, pick a project and an agent, and press Enter.
 - **Review and undo.** See what changed with syntax highlighting and line numbers, and restore any single file.
 - **Know your limits.** Your five-hour and weekly plan limits for Claude Code and Codex, plus cost and tokens per session.
 - **Your day in review.** Sessions, finished tasks, changed files and every approval you made.
 - **Chat about your work.** Ask questions about a session using Claude Code, Anthropic, OpenAI, Google, OpenRouter, Mistral, DeepSeek, Groq, xAI, Together, Ollama, LM Studio or any OpenAI-compatible service.
+- **Speaks your language.** English, Русский, Deutsch, Français, Español, Português, 日本語 and 简体中文.
+- **Updates itself.** Kumo checks GitHub for new releases. On Windows an update is one click; on macOS Kumo tells you and opens the download.
 - **Stays out of the way.** On a MacBook Kumo sits around the notch; on other screens it floats at the top edge. When nothing is happening you only see the little character, and you can hide it in the tray entirely.
 
 ## Supported agents
 
-| Agent | Sessions | Approvals | Context | Plan limits |
-| --- | :---: | :---: | :---: | :---: |
-| Claude Code (terminal and Claude Desktop) | ✓ | ✓ | ✓ | ✓ |
-| Antigravity (desktop and CLI) | ✓ | ✓ | ✓ | |
-| Codex | ✓ | ✓ | ✓ | ✓ |
-| Gemini CLI | ✓ | optional | ✓ | |
-| Cursor | ✓ | optional | | |
+| Agent | Sessions | Approvals | Context | Plan limits | Questions (MCP) |
+| --- | :---: | :---: | :---: | :---: | :---: |
+| Claude Code (terminal and Claude Desktop) | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Antigravity (desktop and CLI) | ✓ | ✓ | ✓ | | |
+| Codex | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Gemini CLI | ✓ | optional | ✓ | | ✓ |
+| Cursor | ✓ | optional | | | ✓ |
+| GitHub Copilot CLI | ✓ | ✓ | | | ✓ |
+| Qwen Code | ✓ | ✓ | ✓ | | ✓ |
+| Windsurf | ✓ | optional | | | ✓ |
+| OpenCode | ✓ | optional | ✓ | | ✓ |
+| Kiro CLI (beta) | ✓ | optional | ✓ | | ✓ |
+| Amp (beta) | ✓ | optional | | | ✓ |
+| Cline (beta) | ✓ | optional | | | ✓ |
+| Aider | alerts | | | | |
+| Roo Code | | | | | ✓ |
 
 ## Getting started
 
@@ -60,7 +73,7 @@ Kumo is free and open source.
 2. **Open it the first time.** Kumo isn't signed by Apple or Microsoft yet, so your system asks once:
    - **macOS:** right-click Kumo in Applications and choose **Open**. If macOS still refuses, run `xattr -dr com.apple.quarantine /Applications/Kumo.app` in Terminal.
    - **Windows:** if SmartScreen appears, click **More info**, then **Run anyway**.
-3. **Connect your agents.** Open **Settings → Agents** and click **Connect** next to the agents you use. Kumo shows exactly what it will add to the agent's settings, keeps a backup and leaves everything else untouched.
+3. **Connect your agents.** On first launch Kumo lists the agents it found on your computer and connects the ones you tick with one click. You can also do it later in **Settings → Agents**, where Kumo shows exactly what it will add to each agent's settings. A backup is always saved and everything else stays untouched.
 4. **Work as usual.** Start a session in your agent. Kumo picks it up straight away.
 
 ## Keyboard shortcuts
@@ -68,15 +81,16 @@ Kumo is free and open source.
 | Action | macOS | Windows |
 | --- | --- | --- |
 | Open or close Kumo | `⌘⌥K` | `Ctrl+Alt+K` |
+| Quick launch a task | `⌘⇧Space` | `Ctrl+Alt+Space` |
 | Allow the current request | `⌘⌥Y` | `Ctrl+Alt+Y` |
 | Deny the current request | `⌘⌥N` | `Ctrl+Alt+N` |
 
-You can change the main shortcut in **Settings → General**.
+You can change both shortcuts and the language in **Settings → General**.
 
 ## Privacy
 
 - Everything stays on your computer. There is no account, no telemetry and no cloud.
-- Kumo only contacts the chat provider you pick, and only when you send a message.
+- Kumo only contacts the chat provider you pick, and only when you send a message. The update check asks GitHub for the latest release and can be turned off in **Settings → About**.
 - API keys are kept in the macOS Keychain or protected by Windows.
 - You can erase chats, history and saved context at any time in **Settings → Privacy**.
 

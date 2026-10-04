@@ -1,0 +1,147 @@
+html,
+body.launcher-body {
+  background: transparent;
+  overflow: hidden;
+}
+
+.launcher {
+  padding: 14px 20px 26px;
+}
+
+.lc-card {
+  background: var(--surface-solid);
+  border: 0.5px solid var(--hairline-strong);
+  border-radius: 18px;
+  box-shadow: var(--shadow), var(--inner-highlight);
+  overflow: hidden;
+}
+.platform-win32 .lc-card {
+  border-radius: var(--r-lg);
+}
+
+.lc-input-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px 12px;
+}
+.lc-glyph {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  background: var(--fill);
+  color: var(--text);
+}
+.lc-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 19px;
+  letter-spacing: -0.015em;
+  line-height: 1.35;
+  resize: none;
+  field-sizing: content;
+  max-height: 140px;
+  padding: 4px 0;
+  user-select: text;
+}
+.lc-input::placeholder {
+  color: var(--text-3);
+}
+.lc-spinner {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--fill-active);
+  border-top-color: var(--text-2);
+  animation: lc-spin 0.8s linear infinite;
+}
+@keyframes lc-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.lc-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 16px;
+  border-top: 0.5px solid var(--hairline);
+}
+.lc-label {
+  flex: none;
+  width: 56px;
+  padding-top: 4px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-3);
+}
+.lc-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+.lc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 0.5px solid var(--hairline);
+  background: var(--raised);
+  color: var(--text-2);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition:
+    background var(--t-fast),
+    color var(--t-fast),
+    border-color var(--t-fast);
+}
+.lc-chip:hover {
+  background: var(--raised-hover);
+  color: var(--text);
+}
+.lc-chip.on {
+  background: var(--primary-bg);
+  border-color: transparent;
+  color: var(--primary-fg);
+}
+.lc-chip.on .agent-letter,
+.lc-chip.on .logo {
+  color: var(--primary-fg) !important;
+}
+.lc-chip.ghost {
+  background: transparent;
+  border-style: dashed;
+}
+
+.lc-foot {
+  padding: 8px 16px 10px;
+  border-top: 0.5px solid var(--hairline);
+  font-size: 11px;
+  color: var(--text-3);
+}
+.lc-foot kbd {
+  font-family: var(--font);
+  font-size: 10.5px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--fill);
+  color: var(--text-2);
+}
+.lc-error {
+  color: var(--red);
+}

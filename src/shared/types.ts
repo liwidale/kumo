@@ -213,7 +213,53 @@ export interface AgentDescriptor {
 
 export type IntegrationState = 'connected' | 'disconnected' | 'outdated' | 'error' | 'unavailable'
 
-export type IntegrationId = 'claude-code' | 'antigravity' | 'codex' | 'gemini' | 'cursor'
+export type IntegrationId =
+  | 'claude-code'
+  | 'antigravity'
+  | 'codex'
+  | 'gemini'
+  | 'cursor'
+  | 'copilot'
+  | 'qwen'
+  | 'windsurf'
+  | 'kiro'
+  | 'opencode'
+  | 'amp'
+  | 'cline'
+  | 'aider'
+
+export type McpClientId = 'claude-code' | 'codex' | 'gemini' | 'qwen' | 'cursor' | 'windsurf' | 'copilot' | 'kiro' | 'opencode' | 'amp' | 'roo' | 'cline'
+
+export interface McpClientStatus {
+  id: McpClientId
+  name: string
+  configPath: string
+  installed: boolean
+  connected: boolean
+  error?: string
+}
+
+export interface AskRequest {
+  id: string
+  agent: string
+  project: string
+  cwd: string
+  sessionKey?: string
+  question: string
+  options: string[]
+  allowText: boolean
+  createdAt: number
+  expiresAt: number
+}
+
+export interface UpdateState {
+  status: 'unsupported' | 'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'latest' | 'error'
+  version?: string
+  progress?: number
+  error?: string
+  manual?: boolean
+  checkedAt?: number
+}
 
 export interface IntegrationStatus {
   id: IntegrationId
@@ -224,10 +270,12 @@ export interface IntegrationStatus {
   installed: { cli: boolean; desktop: boolean }
   lastEventAt?: number
   limits?: boolean
+  beta?: boolean
+  partial?: boolean
 }
 
 export interface HookPreview {
-  integration: IntegrationStatus['id'] | 'claude-limits'
+  integration: IntegrationStatus['id'] | 'claude-limits' | `mcp:${McpClientId}`
   install: boolean
   diff: string
   configPath: string
@@ -368,6 +416,9 @@ export interface Settings {
   autoCollapseSec: number
   awayMinutes: number
   hotkey: string
+  launcherHotkey: string
+  language: string
+  updates: { auto: boolean }
   launchAtLogin: boolean
   paused: boolean
   approvals: {
@@ -377,6 +428,11 @@ export interface Settings {
     antigravity: boolean
     gemini: boolean
     cursor: boolean
+    windsurf: boolean
+    kiro: boolean
+    opencode: boolean
+    amp: boolean
+    cline: boolean
     globalKeys: boolean
     notify: boolean
   }
@@ -422,6 +478,16 @@ export interface InstalledAgents {
   codexCli: boolean
   geminiCli: boolean
   cursorApp: boolean
+  copilotCli: boolean
+  qwenCli: boolean
+  windsurfApp: boolean
+  kiroCli: boolean
+  opencodeCli: boolean
+  ampCli: boolean
+  clineCli: boolean
+  clineExt: boolean
+  rooExt: boolean
+  aiderCli: boolean
   editors: string[]
   terminals: string[]
 }
@@ -450,10 +516,28 @@ export interface Snapshot {
   serverError?: string
   version: string
   limits: AgentLimits[]
+  asks: AskRequest[]
+  update: UpdateState
 }
 
+export type LaunchTarget =
+  | 'claude-cli'
+  | 'claude-desktop'
+  | 'agy-cli'
+  | 'antigravity-desktop'
+  | 'codex-cli'
+  | 'gemini-cli'
+  | 'cursor'
+  | 'copilot-cli'
+  | 'qwen-cli'
+  | 'opencode-cli'
+  | 'amp-cli'
+  | 'kiro-cli'
+  | 'aider-cli'
+  | 'windsurf'
+
 export interface LaunchRequest {
-  target: 'claude-cli' | 'claude-desktop' | 'agy-cli' | 'antigravity-desktop' | 'codex-cli' | 'gemini-cli' | 'cursor'
+  target: LaunchTarget
   cwd: string
   prompt: string
   contextIds: string[]

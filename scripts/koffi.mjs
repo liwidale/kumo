@@ -4,7 +4,6 @@ import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
-// npm installs only the host's koffi binary; a universal mac build needs both.
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const { version } = JSON.parse(readFileSync(path.join(root, 'node_modules/koffi/package.json'), 'utf8'))
 

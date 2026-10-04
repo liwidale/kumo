@@ -8,10 +8,13 @@ import { invalidateDetect } from './detect'
 import { ensureRuntime, restartHookServer, startHookServer, stopHookServer } from './hookServer'
 import { ensureRelay } from './integrations'
 import { applyPresence, createIsland, islandWindow, loadIsland, reassert, send } from './island'
-import { broadcast, pushSnapshot, registerIpc, resolvedTheme } from './ipc'
+import { broadcast, pushSnapshot, registerIpc, reloadWindows, resolvedTheme } from './ipc'
 import { sessions } from './sessions'
 import { settings } from './settings'
 import { openSettings, refreshSettingsChrome, setSettingsUrl } from './settingsWindow'
+import { asks, type AgentNote } from './asks'
+import { setLauncherUrl, toggleLauncher } from './launcher'
+import { updater } from './updater'
 import { createTray, refreshTray } from './tray'
 import { adapterFor } from './agents/adapters'
 import { loadShellPath } from './platform/darwin'
@@ -42,7 +45,22 @@ function applyTheme(): void {
 }
 
 let registeredHotkey = ''
+let registeredLauncher = ''
 let approvalKeys = false
+
+function registerLauncherHotkey(): void {
+  const key = settings.get().launcherHotkey
+  if (registeredLauncher === key) return
+  if (registeredLauncher) globalShortcut.unregister(registeredLauncher)
+  registeredLauncher = ''
+  if (!key) return
+  try {
+    if (globalShortcut.register(key, () => toggleLauncher())) registeredLauncher = key
+    else log('launcher hotkey taken:', key)
+  } catch (e) {
+    log('launcher hotkey invalid:', key, e)
+  }
+}
 
 function registerHotkey(): void {
   const key = settings.get().hotkey
@@ -81,6 +99,13 @@ function syncApprovalKeys(): void {
   }
 }
 
+function systemNote(title: string, body: string, onClick: () => void): void {
+  if (!settings.get().approvals.notify || !Notification.isSupported()) return
+  const n = new Notification({ title, body, silent: true })
+  n.on('click', onClick)
+  n.show()
+}
+
 function notifyApproval(key: string): void {
   const s = settings.get()
   if (!s.approvals.notify || !Notification.isSupported()) return
@@ -92,7 +117,6 @@ function notifyApproval(key: string): void {
 }
 
 app.whenReady().then(async () => {
-  // Launched from a terminal, the environment is already the user's.
   if (isMac && !process.env.TERM_PROGRAM) await loadShellPath().catch((e) => log('shell PATH unavailable', e))
   settings.load()
   applyTheme()
@@ -104,10 +128,13 @@ app.whenReady().then(async () => {
   sessions.start()
 
   setSettingsUrl(rendererUrl('settings'))
+  setLauncherUrl(rendererUrl('launcher'))
   createIsland()
   loadIsland(rendererUrl('island'))
   createTray()
   registerHotkey()
+  registerLauncherHotkey()
+  updater.start()
   if (isMac) app.dock?.hide()
   if (app.getLoginItemSettings().openAtLogin !== settings.get().launchAtLogin) app.setLoginItemSettings({ openAtLogin: settings.get().launchAtLogin })
 
@@ -121,6 +148,23 @@ app.whenReady().then(async () => {
     islandWindow()?.webContents.send('island:alert', { kind, sessionKey: key })
     if (kind === 'approval') notifyApproval(key)
   })
+  asks.on('change', () => {
+    pushSnapshot()
+    refreshTray()
+  })
+  asks.on('alert', (a: { agent: string; project: string; question: string; sessionKey?: string }) => {
+    islandWindow()?.webContents.send('island:alert', { kind: 'ask', sessionKey: a.sessionKey || '' })
+    systemNote(`${adapterFor(a.agent).descriptor.name} · ${a.project}`, a.question.slice(0, 180), () => send({ type: 'focus-approval' }))
+  })
+  asks.on('resolved', (a: { sessionKey?: string }) => islandWindow()?.webContents.send('island:alert', { kind: 'resolved', sessionKey: a.sessionKey || '' }))
+  asks.on('note', (n: AgentNote) => {
+    islandWindow()?.webContents.send('island:alert', { kind: 'message', sessionKey: n.sessionKey || '', note: { ...n, agentName: adapterFor(n.agent).descriptor.name } })
+    if (settings.get().presence === 'tray') systemNote(n.title || `${adapterFor(n.agent).descriptor.name} · ${n.project}`, n.text.slice(0, 200), () => send({ type: 'expand' }))
+  })
+  updater.on('change', () => {
+    pushSnapshot()
+    refreshTray()
+  })
   context.on('change', () => pushSnapshot())
   chat.on('event', (e) => broadcast('chat', e))
 
@@ -128,6 +172,8 @@ app.whenReady().then(async () => {
     broadcast('settings', next)
     if (next.theme !== prev.theme) applyTheme()
     if (next.hotkey !== prev.hotkey) registerHotkey()
+    if (next.launcherHotkey !== prev.launcherHotkey) registerLauncherHotkey()
+    if (next.language !== prev.language) reloadWindows()
     if (next.display !== prev.display) reassert()
     if (next.presence !== prev.presence) {
       applyPresence()
@@ -188,6 +234,8 @@ app.on('before-quit', (e) => {
   quitting = true
   globalShortcut.unregisterAll()
   sessions.stop()
+  asks.stop()
+  updater.stop()
   settings.flush()
   history.flush()
   for (const c of chat.list()) chat.stop(c.id)

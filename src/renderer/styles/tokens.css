@@ -267,3 +267,10 @@ kbd {
   color: var(--text-3);
   font-style: italic;
 }
+
+.agent-letter {
+  display: inline-grid;
+  place-items: center;
+  font-weight: 700;
+  line-height: 1;
+}

@@ -1,11 +1,12 @@
 import { create } from 'zustand'
+import type { AgentNoteEvent } from '../../shared/api'
 import type { ChatMessage, Conversation, ConversationSummary, DisplayInfo, ModelInfo, ProviderInfo, Settings, Snapshot } from '../../shared/types'
 
 
 export type Level = 'hidden' | 'idle' | 'active' | 'peek' | 'notify' | 'open'
 export type View = 'home' | 'session' | 'approval' | 'chat' | 'context' | 'launch' | 'drop' | 'welcome' | 'diff' | 'today'
 export type Tab = 'home' | 'chat' | 'context'
-export type NotifyKind = 'done' | 'error' | 'question' | 'waiting'
+export type NotifyKind = 'done' | 'error' | 'question' | 'waiting' | 'message'
 
 export interface Toast {
   id: number
@@ -21,7 +22,7 @@ interface IslandState {
   view: View
   history: View[]
   sessionKey: string | null
-  notify: { key: string; kind: NotifyKind } | null
+  notify: { key: string; kind: NotifyKind; note?: AgentNoteEvent } | null
   pinned: boolean
   focused: boolean
   hovering: boolean

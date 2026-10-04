@@ -1,3 +1,4 @@
+import { tr } from '../../shared/i18n'
 import { useEffect, useRef, useState } from 'react'
 import type { Approval as A, Behavior } from '../../../shared/types'
 import { lineDiff } from '../../shared/diff'
@@ -7,6 +8,7 @@ import { AgentGlyph, Icon } from '../../shared/icons'
 import { play } from '../../shared/sound'
 import { useIsland } from '../store'
 import { agentOf, Button, EmptyState, Menu } from '../ui'
+import { AskCard } from './Ask'
 
 function MiniDiff({ a }: { a: A }) {
   if (a.diff?.length) {
@@ -57,6 +59,9 @@ export function Approval({ now }: { now: number }) {
   const [index, setIndex] = useState(0)
   const [busy, setBusy] = useState(false)
   const list = snap?.approvals ?? []
+  const asks = snap?.asks ?? []
+  const [askIndex, setAskIndex] = useState(0)
+  const ask = asks[Math.min(askIndex, asks.length - 1)]
   const a = list[Math.min(index, list.length - 1)]
   const cardRef = useRef<HTMLDivElement>(null)
   const [tick, setTick] = useState(Date.now())
@@ -76,11 +81,11 @@ export function Approval({ now }: { now: number }) {
     play(behavior === 'allow' ? 'send' : 'close')
     const r = await window.kumo.decide({ id: a.id, behavior, remember })
     setBusy(false)
-    if (!r.ok) useIsland.getState().showToast(r.error || 'Could not send the decision', 'error')
+    if (!r.ok) useIsland.getState().showToast(r.error || tr('Could not send the decision'), 'error')
   }
 
   useEffect(() => {
-    if (!a) return
+    if (!a || ask) return
     const onKey = (e: KeyboardEvent): void => {
       if ((e.target as HTMLElement)?.closest('input, textarea')) return
       if (e.metaKey || e.ctrlKey || e.altKey) return
@@ -101,10 +106,12 @@ export function Approval({ now }: { now: number }) {
     return () => window.removeEventListener('keydown', onKey)
   })
 
+  if (snap && ask) return <AskCard ask={ask} index={Math.min(askIndex, asks.length - 1)} total={asks.length} onIndex={setAskIndex} />
+
   if (!snap || !a)
     return (
-      <EmptyState title="Nothing to approve" body="Requests from your agents will appear here.">
-        <Button onClick={() => useIsland.getState().open('home', { reset: true })}>Back to sessions</Button>
+      <EmptyState title={tr('Nothing to approve')} body={tr('Requests from your agents will appear here.')}>
+        <Button onClick={() => useIsland.getState().open('home', { reset: true })}>{tr('Back to sessions')}</Button>
       </EmptyState>
     )
 
@@ -127,11 +134,11 @@ export function Approval({ now }: { now: number }) {
         </span>
         {list.length > 1 && (
           <span className="ap-queue">
-            <button className="icon-btn tiny" disabled={index === 0} onClick={() => setIndex(index - 1)} title="Previous">
+            <button className="icon-btn tiny" disabled={index === 0} onClick={() => setIndex(index - 1)} title={tr('Previous')}>
               <Icon name="back" size={12} />
             </button>
-            {index + 1} of {list.length}
-            <button className="icon-btn tiny" disabled={index >= list.length - 1} onClick={() => setIndex(index + 1)} title="Next">
+            {tr('{0} of {1}', index + 1, list.length)}
+            <button className="icon-btn tiny" disabled={index >= list.length - 1} onClick={() => setIndex(index + 1)} title={tr('Next')}>
               <Icon name="forward" size={12} />
             </button>
           </span>
@@ -157,47 +164,43 @@ export function Approval({ now }: { now: number }) {
       )}
       {a.description && a.kind === 'command' && a.description !== a.title && <div className="ap-desc">{a.description}</div>}
       <MiniDiff a={a} />
-      {a.kind === 'command' && a.cwd && <div className="ap-cwd mono">in {shortPath(a.cwd)}</div>}
+      {a.kind === 'command' && a.cwd && <div className="ap-cwd mono">{tr('in {0}', shortPath(a.cwd))}</div>}
 
       <div className="ap-actions">
-        <Button kind="ghost" icon="jump" onClick={() => session && void window.kumo.jump(session.key)} title={`Answer in ${session?.host.app || 'the agent'} instead`}>
-          {session?.host.app || 'Agent'}
+        <Button kind="ghost" icon="jump" onClick={() => session && void window.kumo.jump(session.key)} title={tr('Answer in {0} instead', session?.host.app || tr('the agent'))}>
+          {session?.host.app || tr('Agent')}
         </Button>
         <span className="spacer" />
         <div className="split">
-          <Button kind="secondary" kbd={focused ? 'N' : undefined} onClick={() => void decide('deny')} disabled={busy} className="split-main">
-            Deny
-          </Button>
+          <Button kind="secondary" kbd={focused ? 'N' : undefined} onClick={() => void decide('deny')} disabled={busy} className="split-main">{tr('Deny')}</Button>
           <Menu
             align="right"
             up
             trigger={(_o, toggle) => (
-              <button className="btn btn-secondary split-more" onClick={toggle} disabled={busy} aria-label="More ways to deny">
+              <button className="btn btn-secondary split-more" onClick={toggle} disabled={busy} aria-label={tr('More ways to deny')}>
                 <Icon name="down" size={12} />
               </button>
             )}
-            items={[{ label: a.kind === 'command' ? 'Always deny this command' : `Always deny ${a.tool} here`, hint: 'rule', icon: 'shield', onClick: () => void decide('deny', 'rule-deny') }]}
+            items={[{ label: a.kind === 'command' ? tr('Always deny this command') : tr('Always deny {0} here', a.tool), hint: 'rule', icon: 'shield', onClick: () => void decide('deny', 'rule-deny') }]}
           />
         </div>
         <div className="split">
-          <Button kind="primary" kbd={focused ? 'Y' : undefined} onClick={() => void decide('allow')} disabled={busy} className="split-main">
-            Allow
-          </Button>
+          <Button kind="primary" kbd={focused ? 'Y' : undefined} onClick={() => void decide('allow')} disabled={busy} className="split-main">{tr('Allow')}</Button>
           <Menu
             align="right"
             up
             trigger={(_o, toggle) => (
-              <button className="btn btn-primary split-more" onClick={toggle} disabled={busy} aria-label="More ways to allow">
+              <button className="btn btn-primary split-more" onClick={toggle} disabled={busy} aria-label={tr('More ways to allow')}>
                 <Icon name="down" size={12} />
               </button>
             )}
             items={[
               ...a.suggestions.map((s, i) => ({ label: s.label, hint: i === 0 && focused ? 'A' : undefined, icon: 'check' as const, onClick: () => void decide('allow', s.id) })),
-              ...(a.kind === 'command' ? [{ label: 'Always allow this command', hint: 'session', icon: 'check' as const, onClick: () => void decide('allow', 'exact') }] : []),
-              { label: a.kind === 'command' ? 'Allow all commands' : `Allow all ${a.tool}`, hint: 'session', icon: 'clock' as const, onClick: () => void decide('allow', 'session') },
+              ...(a.kind === 'command' ? [{ label: tr('Always allow this command'), hint: 'session', icon: 'check' as const, onClick: () => void decide('allow', 'exact') }] : []),
+              { label: a.kind === 'command' ? tr('Allow all commands') : tr('Allow all {0}', a.tool), hint: 'session', icon: 'clock' as const, onClick: () => void decide('allow', 'session') },
               'sep' as const,
               {
-                label: a.kind === 'command' ? `Always allow “${ruleLabel(a.subject)}”` : `Always allow ${a.tool} here`,
+                label: a.kind === 'command' ? tr('Always allow “{0}”', ruleLabel(a.subject)) : tr('Always allow {0} here', a.tool),
                 hint: 'rule',
                 icon: 'shield' as const,
                 onClick: () => void decide('allow', 'rule-allow'),
@@ -209,7 +212,7 @@ export function Approval({ now }: { now: number }) {
       <div className="ap-timer" aria-hidden>
         <span style={{ transform: `scaleX(${pct})` }} />
       </div>
-      {!focused && <div className="ap-hint">{window.kumo.platform === 'darwin' ? '⌘⌥Y allow · ⌘⌥N deny' : 'Ctrl+Alt+Y allow · Ctrl+Alt+N deny'} · if you don't answer, the agent asks as usual</div>}
+      {!focused && <div className="ap-hint">{window.kumo.platform === 'darwin' ? tr('⌘⌥Y allow · ⌘⌥N deny') : tr('Ctrl+Alt+Y allow · Ctrl+Alt+N deny')}{' '}{tr('· if you don\'t answer, the agent asks as usual')}</div>}
     </div>
   )
 }

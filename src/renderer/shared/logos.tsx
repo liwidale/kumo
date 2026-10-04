@@ -14,6 +14,14 @@ import openai from '../assets/logos/openai.svg?raw'
 import openrouter from '../assets/logos/openrouter.svg?raw'
 import together from '../assets/logos/together.svg?raw'
 import xai from '../assets/logos/xai.svg?raw'
+import copilot from '../assets/logos/githubcopilot.svg?raw'
+import qwen from '../assets/logos/qwen.svg?raw'
+import windsurf from '../assets/logos/windsurf.svg?raw'
+import kiro from '../assets/logos/kiro.svg?raw'
+import opencode from '../assets/logos/opencode.svg?raw'
+import amp from '../assets/logos/amp.svg?raw'
+import cline from '../assets/logos/cline.svg?raw'
+import roo from '../assets/logos/roocode.svg?raw'
 
 
 const strip = (svg: string): string => svg.replace(/<title>[^<]*<\/title>/, '').replace(/\s(width|height)="1em"/g, '')
@@ -24,6 +32,14 @@ const AGENTS: Record<string, string> = {
   codex: strip(codex),
   gemini: strip(geminiCli),
   cursor: strip(cursor),
+  copilot: strip(copilot),
+  qwen: strip(qwen),
+  windsurf: strip(windsurf),
+  kiro: strip(kiro),
+  opencode: strip(opencode),
+  amp: strip(amp),
+  cline: strip(cline),
+  roo: strip(roo),
 }
 
 const PROVIDERS: Record<string, string> = {

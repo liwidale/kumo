@@ -1,13 +1,14 @@
+import { tr } from '../shared/i18n'
 import type { AgentDescriptor, AgentLimits } from '../../shared/types'
 import { agentOf } from './ui'
 
 function resetsIn(at: number | undefined, now: number): string {
   if (!at) return ''
   const m = Math.max(0, Math.round((at - now) / 60_000))
-  if (m < 60) return `resets in ${m}m`
+  if (m < 60) return tr('resets in {0}m', m)
   const h = Math.floor(m / 60)
-  if (h < 48) return `resets in ${h}h ${m % 60}m`
-  return `resets in ${Math.round(h / 24)}d`
+  if (h < 48) return tr('resets in {0}h {1}m', h, m % 60)
+  return tr('resets in {0}d', Math.round(h / 24))
 }
 
 export function LimitsRow({ limits, agents, now }: { limits: AgentLimits[]; agents: AgentDescriptor[]; now: number }) {
@@ -28,7 +29,7 @@ export function LimitsRow({ limits, agents, now }: { limits: AgentLimits[]; agen
                 const pct = Math.round(w.usedPct)
                 const tone = pct >= 85 ? 'red' : pct >= 65 ? 'amber' : 'ok'
                 return (
-                  <span key={w.kind} className={`limit limit-${tone}`} title={`${w.label}: ${pct}% used${w.resetsAt ? ` · ${resetsIn(w.resetsAt, now)}` : ''}`}>
+                  <span key={w.kind} className={`limit limit-${tone}`} title={`${tr('{0}: {1}% used', w.label, pct)}${w.resetsAt ? ` · ${resetsIn(w.resetsAt, now)}` : ''}`}>
                     <span className="limit-label">{w.label}</span>
                     <span className="limit-bar">
                       <span style={{ width: `${Math.min(100, pct)}%` }} />

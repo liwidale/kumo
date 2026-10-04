@@ -10,10 +10,8 @@ function run(cmd: string, args: string[], timeout = 2500): Promise<string> {
   })
 }
 
-// kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements
 const ON_SCREEN = 1 | 16
 
-/** Front app via NSWorkspace (public API), plus its frontmost normal window for capture. */
 function frontmostNative(ownPid: number): ActiveWindow | null | undefined {
   const o = objc()
   if (!o) return undefined
@@ -34,7 +32,6 @@ function frontmostNative(ownPid: number): ActiveWindow | null | undefined {
         if (o.int(o.send(w, 'objectForKey:', key('kCGWindowOwnerPID')), 'intValue') !== pid) continue
         if (o.int(o.send(w, 'objectForKey:', key('kCGWindowLayer')), 'intValue') !== 0) continue
         win.windowId = o.int(o.send(w, 'objectForKey:', key('kCGWindowNumber')), 'intValue') || undefined
-        // Titles of other apps' windows are only visible with Screen Recording permission.
         win.title = o.str(o.send(w, 'objectForKey:', key('kCGWindowName')), 'UTF8String') || ''
         break
       }
@@ -66,10 +63,6 @@ export async function frontmostApp(ownPid: number): Promise<ActiveWindow | null>
   return frontmostLsappinfo(ownPid)
 }
 
-/**
- * Apps opened from Finder, the Dock or at login get launchd's bare PATH, which hides
- * Homebrew, npm, nvm and friends. Borrow the PATH the user's login shell would have.
- */
 export async function loadShellPath(): Promise<void> {
   const shell = process.env.SHELL || '/bin/zsh'
   const mark = '__KUMO_ENV__'
@@ -103,11 +96,9 @@ function osa(script: string, timeout = 4000): Promise<boolean> {
   return new Promise((resolve) => execFile('/usr/bin/osascript', ['-e', script], { timeout }, (err) => resolve(!err)))
 }
 
-/** Opens a window in an already running Ghostty (1.3+ scripting). False when it isn't running or can't be scripted. */
 export function ghosttyWindow(cwd: string, command: string): Promise<boolean> {
   return osa(
     `if not (application "Ghostty" is running) then error "not running"\ntell application "Ghostty"\nactivate\nset cfg to new surface configuration\nset initial working directory of cfg to ${JSON.stringify(cwd)}\nset initial input of cfg to ${JSON.stringify(command)} & linefeed\nnew window with configuration cfg\nend tell`,
-    // The first time, macOS asks whether Kumo may control Ghostty; leave room to answer.
     60_000,
   )
 }
@@ -127,7 +118,6 @@ export async function focusHost(host: HostInfo, cwd?: string): Promise<boolean> 
     )
     if (ok) return true
   }
-  // Ghostty doesn't expose ttys; the agent's working directory is the next best handle.
   if (host.termProgram === 'ghostty' && cwd) {
     const ok = await osa(
       `if not (application "Ghostty" is running) then error "not running"\ntell application "Ghostty"\nset ts to every terminal whose working directory is ${JSON.stringify(cwd)}\nif ts is {} then error "no terminal"\nfocus item 1 of ts\nactivate\nend tell`,

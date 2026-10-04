@@ -1,3 +1,4 @@
+import { tr } from '../shared/i18n'
 import { AnimatePresence, motion } from 'motion/react'
 import { useLayoutEffect, useMemo, useRef, type RefObject } from 'react'
 import type { Mood, Snapshot } from '../../shared/types'
@@ -27,10 +28,11 @@ function summary(snap: Snapshot | null): { text: string; tone: 'normal' | 'amber
   if (snap.approvals.length) {
     const a = snap.approvals[0]
     const name = agentOf(snap.agents, a.agent).name
-    return { text: snap.approvals.length > 1 ? `${snap.approvals.length} requests need your OK` : `${name} needs your OK`, tone: 'amber' }
+    return { text: snap.approvals.length > 1 ? tr('{0} request needs your OK|{0} requests need your OK', snap.approvals.length) : tr('{0} needs your OK', name), tone: 'amber' }
   }
+  if (snap.asks?.length) return { text: tr('{0} has a question for you', agentOf(snap.agents, snap.asks[0].agent).name), tone: 'amber' }
   const waiting = live.find((s) => s.phase === 'question' || s.phase === 'waiting')
-  if (waiting) return { text: `${waiting.project} is waiting for you`, tone: 'amber' }
+  if (waiting) return { text: tr('{0} is waiting for you', waiting.project), tone: 'amber' }
   if (!live.length) return { text: 'Kumo', tone: 'normal' }
   if (live.length === 1) {
     const s = live[0]
@@ -38,8 +40,8 @@ function summary(snap: Snapshot | null): { text: string; tone: 'normal' | 'amber
   }
   const working = live.filter(busy).length
   const errors = live.filter((s) => s.phase === 'error').length
-  if (errors && !working) return { text: `${live.length} sessions · ${errors} stopped`, tone: 'red' }
-  return { text: working === live.length ? `${working} sessions working` : working ? `${working} of ${live.length} sessions working` : `${live.length} sessions · all quiet`, tone: 'normal' }
+  if (errors && !working) return { text: tr('{0} session · {1} stopped|{0} sessions · {1} stopped', live.length, errors), tone: 'red' }
+  return { text: working === live.length ? tr('{0} session working|{0} sessions working', working) : working ? tr('{0} of {1} sessions working', working, live.length) : tr('{0} session · all quiet|{0} sessions · all quiet', live.length), tone: 'normal' }
 }
 
 export function TopRow({ kumoRef, level, mood, height, notch, notchWidth, reduced, now, dark, leaving, onLabelWidth, onAccWidth }: Props) {
@@ -131,7 +133,7 @@ export function TopRow({ kumoRef, level, mood, height, notch, notchWidth, reduce
               animate={{ opacity: 1, x: 0, transition: { delay: reduced ? 0 : 0.1, duration: 0.2 } }}
               exit={{ opacity: 0, transition: { duration: 0.08 } }}
             >
-              {settings?.paused && <span className="paused-tag">Paused · </span>}
+              {settings?.paused && <span className="paused-tag">{tr('Paused')} ·{' '}</span>}
               {sum.text}
             </motion.span>
           )}

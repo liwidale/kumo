@@ -1,3 +1,4 @@
+import { tr } from './i18n'
 import { EventEmitter } from 'node:events'
 import fs from 'node:fs'
 import type { AgentLimits, Approval, ApprovalRule, Decision, DecisionSource, HostInfo, LimitWindow, LivePreview, Phase, PlanItem, Session, Step } from '../shared/types'
@@ -14,6 +15,18 @@ const MAX_FILES = 60
 const STALE_MS = 20 * 60_000
 const FORGET_DONE_MS = 3 * 60 * 60_000
 const FORGET_ENDED_MS = 90_000
+
+const HALT_EVENT: Record<string, string> = {
+  antigravity: 'PreToolUse',
+  cursor: 'preToolUse',
+  gemini: 'BeforeTool',
+  copilot: 'permissionRequest',
+  windsurf: 'pre_run_command',
+  kiro: 'PreToolUse',
+  opencode: 'permission',
+  amp: 'permission',
+  cline: 'permission',
+}
 
 export type AlertKind = 'approval' | 'done' | 'error' | 'question' | 'waiting' | 'resolved'
 
@@ -35,11 +48,13 @@ function hostFrom(env: HookEnvelope): HostInfo {
     return { ...base, kind: 'cli', app: terminalName(env) || 'Antigravity CLI' }
   }
   if (env.agent === 'cursor') return { ...base, kind: 'ide', app: 'Cursor' }
+  if (env.agent === 'windsurf') return { ...base, kind: 'ide', app: 'Windsurf' }
   if (env.agent === 'codex' && (has(/^codex(\.exe)?$/) && has(/^(code|cursor)(\.exe)?$/))) return { ...base, kind: 'ide', app: has(/^cursor/) ? 'Cursor' : 'VS Code' }
   if (env.agent === 'claude-code' && e.CLAUDE_CODE_ENTRYPOINT === 'claude-desktop') return { ...base, kind: 'desktop', app: 'Claude' }
   if (e.TERM_PROGRAM === 'vscode' || has(/^(code|code - insiders)(\.exe)?$/) || e.VSCODE_GIT_IPC_HANDLE) {
     if (has(/^cursor(\.exe)?$/) || /cursor/i.test(e.__CFBundleIdentifier || '')) return { ...base, kind: 'ide', app: 'Cursor' }
     if (has(/^antigravity(\.exe)?$/)) return { ...base, kind: 'ide', app: 'Antigravity' }
+    if (has(/^windsurf(\.exe)?$/)) return { ...base, kind: 'ide', app: 'Windsurf' }
     return { ...base, kind: 'ide', app: 'VS Code' }
   }
   if (has(/^(idea|pycharm|webstorm|goland|rider|clion)/)) return { ...base, kind: 'ide', app: 'JetBrains' }
@@ -223,7 +238,7 @@ class SessionStore extends EventEmitter {
   }
 
   projectName(cwd: string): string {
-    if (!cwd) return 'No project'
+    if (!cwd) return tr('No project')
     const alias = settings.get().aliases[cwd]
     return alias || basename(cwd)
   }
@@ -309,7 +324,7 @@ class SessionStore extends EventEmitter {
         this.resolveSessionPending(s.key, 'answered elsewhere')
         if (ev.prompt) {
           s.task = truncate(ev.prompt, 240)
-          this.push(s, { kind: 'prompt', verb: 'Prompt', target: truncate(ev.prompt, 120), detail: ev.prompt })
+          this.push(s, { kind: 'prompt', verb: tr('Prompt'), target: truncate(ev.prompt, 120), detail: ev.prompt })
         } else if (ev.type === 'turn-start' && !s.task && ev.transcript) {
           s.task = this.lastUserMessage(ev.transcript) || s.task
         }
@@ -323,12 +338,12 @@ class SessionStore extends EventEmitter {
         if (s.queued.length) {
           const extra = `The user also sent this through Kumo:\n${s.queued.map((q) => `- ${q}`).join('\n')}`
           text = text ? `${text}\n\n${extra}` : extra
-          this.push(s, { kind: 'prompt', verb: 'From Kumo', target: truncate(s.queued.join(' · '), 120), detail: s.queued.join('\n') })
+          this.push(s, { kind: 'prompt', verb: tr('From Kumo'), target: truncate(s.queued.join(' · '), 120), detail: s.queued.join('\n') })
           s.queued = []
         }
         if (text) {
           body = adapter.context(text, ev)
-          this.push(s, { kind: 'context', verb: 'Context', target: 'Shared from Kumo', detail: text })
+          this.push(s, { kind: 'context', verb: tr('Context'), target: tr('Shared from Kumo'), detail: text })
           s.pendingContext = 0
         }
         break
@@ -382,7 +397,7 @@ class SessionStore extends EventEmitter {
         if (step) step.ok = !t.error
         if (t.error) {
           s.errorCount++
-          this.push(s, { kind: 'error', verb: 'Failed', target: describeTool(env.agent, t.name, t.input).verb, detail: t.error, tool: t.name })
+          this.push(s, { kind: 'error', verb: tr('Failed'), target: describeTool(env.agent, t.name, t.input).verb, detail: t.error, tool: t.name })
         }
         if (t.useId) {
           this.resolveByToolUse(s.key, t.useId)
@@ -406,14 +421,14 @@ class SessionStore extends EventEmitter {
           if (![...this.pending.values()].some((p) => p.approval.sessionKey === s.key)) {
             s.notice = n.message || 'Waiting for you'
             this.setPhase(s, 'waiting')
-            this.push(s, { kind: 'notice', verb: 'Waiting', target: truncate(n.message, 100) })
+            this.push(s, { kind: 'notice', verb: tr('Waiting'), target: truncate(n.message, 100) })
             this.alert('waiting', s.key)
           }
         } else if (n.kind === 'idle_prompt') {
           if (s.phase !== 'done') this.setPhase(s, 'idle')
         } else if (/limit|quota/i.test(n.kind) || /usage limit|rate limit/i.test(n.message)) {
           s.notice = n.message || 'Usage limit reached'
-          this.push(s, { kind: 'notice', verb: 'Limit', target: truncate(n.message, 100) })
+          this.push(s, { kind: 'notice', verb: tr('Limit'), target: truncate(n.message, 100) })
         }
         break
       }
@@ -430,7 +445,7 @@ class SessionStore extends EventEmitter {
             s.task = truncate(next, 240)
             s.summary = undefined
             s.preview = undefined
-            this.push(s, { kind: 'prompt', verb: 'From Kumo', target: truncate(next, 120), detail: next })
+            this.push(s, { kind: 'prompt', verb: tr('From Kumo'), target: truncate(next, 120), detail: next })
             this.setPhase(s, 'thinking')
             this.changed()
             return reply
@@ -443,7 +458,7 @@ class SessionStore extends EventEmitter {
         s.current = undefined
         s.question = undefined
         s.notice = undefined
-        this.push(s, { kind: 'done', verb: 'Done', target: s.summary ? truncate(s.summary, 120) : undefined, detail: s.summary })
+        this.push(s, { kind: 'done', verb: tr('Done'), target: s.summary ? truncate(s.summary, 120) : undefined, detail: s.summary })
         if (s.task) history.task({ at: Date.now(), agent: s.agent, project: s.project, task: s.task, summary: s.summary })
         this.setPhase(s, 'done')
         this.alert('done', s.key)
@@ -454,19 +469,19 @@ class SessionStore extends EventEmitter {
         this.resolveSessionPending(s.key, 'turn failed')
         s.current = undefined
         s.notice = truncate(ev.error, 200)
-        this.push(s, { kind: 'error', verb: 'Stopped', target: truncate(ev.error, 100), detail: ev.error })
+        this.push(s, { kind: 'error', verb: tr('Stopped'), target: truncate(ev.error, 100), detail: ev.error })
         this.setPhase(s, 'error')
         this.alert('error', s.key)
         break
       }
 
       case 'subagent-start':
-        this.push(s, { kind: 'subagent', verb: 'Sub-agent', target: ev.title || 'started' })
+        this.push(s, { kind: 'subagent', verb: tr('Sub-agent'), target: ev.title || 'started' })
         if (!s.subagents.some((x) => x.status === 'running' && x.type === (ev.title || 'agent'))) this.addSubagent(s, id(), ev.title || 'agent', '')
         break
 
       case 'subagent-stop': {
-        this.push(s, { kind: 'subagent', verb: 'Sub-agent', target: `${ev.title || 'agent'} finished`, ok: true })
+        this.push(s, { kind: 'subagent', verb: tr('Sub-agent'), target: tr('{0} finished', ev.title || 'agent'), ok: true })
         const sub = [...s.subagents].reverse().find((x) => x.status === 'running' && (!ev.title || x.type === ev.title))
         if (sub) sub.status = 'done'
         break
@@ -474,7 +489,7 @@ class SessionStore extends EventEmitter {
 
       case 'session-end':
         this.resolveSessionPending(s.key, 'session ended')
-        this.end(s, 'Session closed')
+        this.end(s, tr('Session closed'))
         break
     }
     this.changed()
@@ -487,7 +502,7 @@ class SessionStore extends EventEmitter {
     const t = text.trim()
     if (!s || !t) return false
     s.queued.push(t.slice(0, 4000))
-    this.push(s, { kind: 'notice', verb: 'Queued', target: truncate(t, 100) })
+    this.push(s, { kind: 'notice', verb: tr('Queued'), target: truncate(t, 100) })
     this.changed()
     return true
   }
@@ -501,17 +516,17 @@ class SessionStore extends EventEmitter {
 
   requestStop(key: string, force = false): { ok: boolean; error?: string } {
     const s = this.sessions.get(key)
-    if (!s) return { ok: false, error: 'That session is gone.' }
+    if (!s) return { ok: false, error: tr('That session is gone.') }
     if (force) {
       const pid = this.agentPids.get(key)
-      if (!pid) return { ok: false, error: 'Kumo doesn’t know this agent’s process.' }
+      if (!pid) return { ok: false, error: tr('Kumo doesn’t know this agent’s process.') }
       try {
         process.kill(pid)
       } catch (e) {
-        return { ok: false, error: `Couldn’t end the process: ${(e as Error).message}` }
+        return { ok: false, error: tr('Couldn’t end the process: {0}', (e as Error).message) }
       }
       this.resolveSessionPending(key, 'stopped', 'stop')
-      this.end(s, 'Ended from Kumo')
+      this.end(s, tr('Ended from Kumo'))
       this.changed()
       return { ok: true }
     }
@@ -522,11 +537,11 @@ class SessionStore extends EventEmitter {
       if (p.approval.sessionKey !== key) continue
       clearTimeout(p.timer)
       this.pending.delete(pid)
-      p.resolve(adapterFor(p.approval.agent).halt(p.approval.agent === 'antigravity' ? 'PreToolUse' : p.approval.agent === 'cursor' ? 'preToolUse' : p.approval.agent === 'gemini' ? 'BeforeTool' : 'PermissionRequest', { type: 'approval', sessionId: s.sessionId, cwd: s.cwd }))
+      p.resolve(adapterFor(p.approval.agent).halt(HALT_EVENT[p.approval.agent] || 'PermissionRequest', { type: 'approval', sessionId: s.sessionId, cwd: s.cwd }))
       this.record(p.approval, 'deny', 'stop')
       this.alert('resolved', key)
     }
-    this.push(s, { kind: 'notice', verb: 'Stopping', target: 'Asked the agent to stop' })
+    this.push(s, { kind: 'notice', verb: tr('Stopping'), target: tr('Asked the agent to stop') })
     this.changed()
     return { ok: true }
   }
@@ -535,7 +550,7 @@ class SessionStore extends EventEmitter {
     const body = adapter.halt(raw, ev)
     this.haltAt.set(s.key, Date.now())
     const finished = ev.type === 'stop' || ev.type === 'stop-failure' || ev.type === 'session-end'
-    if (finished || s.agent === 'claude-code' || s.agent === 'codex' || s.agent === 'gemini') this.settleStop(s)
+    if (finished || ['claude-code', 'codex', 'gemini', 'qwen', 'copilot'].includes(s.agent)) this.settleStop(s)
     this.changed()
     return body
   }
@@ -544,9 +559,9 @@ class SessionStore extends EventEmitter {
     s.stopping = false
     s.current = undefined
     s.preview = undefined
-    s.notice = 'Stopped from Kumo'
+    s.notice = tr('Stopped from Kumo')
     for (const sub of s.subagents) sub.status = 'done'
-    this.push(s, { kind: 'notice', verb: 'Stopped', target: 'from Kumo' })
+    this.push(s, { kind: 'notice', verb: tr('Stopped'), target: tr('From Kumo') })
     this.setPhase(s, 'idle')
   }
 
@@ -596,7 +611,7 @@ class SessionStore extends EventEmitter {
     const q = qs[0] || i
     const opts = Array.isArray(q.options) ? (q.options as unknown[]) : []
     return {
-      text: truncate(String(q.question || q.Question || q.text || 'The agent has a question for you'), 300),
+      text: truncate(String(q.question || q.Question || q.text || tr('The agent has a question for you')), 300),
       options: opts
         .map((o) => (typeof o === 'string' ? o : String((o as Record<string, unknown>)?.label ?? '')))
         .filter(Boolean)
@@ -704,13 +719,13 @@ class SessionStore extends EventEmitter {
     const meta = { agent: env.agent, project: s.project, cwd: s.cwd, title: d.title, subject: d.subject, kind: d.kind, risk }
     const rule = this.matchRule(env.agent, s.cwd, t.name, d)
     if (rule) {
-      this.push(s, { kind: 'approval', verb: rule.action === 'allow' ? 'Allowed' : 'Declined', target: `${d.verb} ${d.target || ''} (your rule)`.trim(), ok: rule.action === 'allow' })
+      this.push(s, { kind: 'approval', verb: rule.action === 'allow' ? tr('Allowed') : tr('Declined'), target: tr('{0} · your rule', `${d.verb} ${d.target || ''}`.trim()), ok: rule.action === 'allow' })
       this.record(meta, rule.action, 'rule')
       return Promise.resolve(adapter.decision({ id: '', behavior: rule.action, message: rule.action === 'deny' ? 'Blocked by a rule in Kumo.' : undefined }, raw))
     }
     const rules = this.sessionRules.get(s.key)
     if (rules?.has(t.name) || rules?.has(`${t.name}\u0000${d.subject}`)) {
-      this.push(s, { kind: 'approval', verb: 'Allowed', target: `${d.verb} ${d.target || ''} (this session)`.trim(), ok: true })
+      this.push(s, { kind: 'approval', verb: tr('Allowed'), target: tr('{0} · this session', `${d.verb} ${d.target || ''}`.trim()), ok: true })
       this.record(meta, 'allow', 'session')
       return Promise.resolve(adapter.decision({ id: '', behavior: 'allow' }))
     }
@@ -746,7 +761,7 @@ class SessionStore extends EventEmitter {
     }
     this.setPhase(s, 'waiting')
     s.notice = undefined
-    this.push(s, { kind: 'approval', verb: 'Asks', target: d.title, detail: d.subject, tool: t.name, toolUseId: t.useId })
+    this.push(s, { kind: 'approval', verb: tr('Asks'), target: d.title, detail: d.subject, tool: t.name, toolUseId: t.useId })
 
     return new Promise<string>((resolve) => {
       const timer = setTimeout(() => this.expire(approval.id), timeoutMs)
@@ -759,14 +774,14 @@ class SessionStore extends EventEmitter {
 
   private describeRule(o: Record<string, unknown>): string {
     const rules = Array.isArray(o.rules) ? (o.rules as Record<string, unknown>[]) : []
-    const dest = o.destination === 'localSettings' || o.destination === 'projectSettings' ? 'in this project' : o.destination === 'session' ? 'this session' : ''
+    const project = o.destination === 'localSettings' || o.destination === 'projectSettings'
     if (o.type === 'addRules' && rules.length) {
       const r = rules[0]
-      const what = r.ruleContent ? `${r.toolName}(${truncate(String(r.ruleContent), 40)})` : String(r.toolName || 'this tool')
-      return `Always allow ${what}${dest ? ` ${dest}` : ''}`
+      const what = r.ruleContent ? `${r.toolName}(${truncate(String(r.ruleContent), 40)})` : String(r.toolName || tr('this tool'))
+      return project ? tr('Always allow {0} in this project', what) : o.destination === 'session' ? tr('Always allow {0} for this session', what) : tr('Always allow {0}', what)
     }
-    if (o.type === 'setMode' && o.mode === 'acceptEdits') return 'Accept all edits this session'
-    if (typeof o.rule === 'string') return `Always allow ${o.rule}`
+    if (o.type === 'setMode' && o.mode === 'acceptEdits') return tr('Accept all edits this session')
+    if (typeof o.rule === 'string') return tr('Always allow {0}', o.rule)
     return ''
   }
 
@@ -786,7 +801,7 @@ class SessionStore extends EventEmitter {
     p.resolve(adapter.decision(d, p.raw))
     this.record(p.approval, d.behavior, d.remember === 'session' || d.remember === 'exact' ? 'session' : 'you')
     if (s) {
-      this.push(s, { kind: 'approval', verb: d.behavior === 'allow' ? 'Allowed' : 'Declined', target: p.approval.title, ok: d.behavior === 'allow' })
+      this.push(s, { kind: 'approval', verb: d.behavior === 'allow' ? tr('Allowed') : tr('Declined'), target: p.approval.title, ok: d.behavior === 'allow' })
       this.setPhase(s, d.behavior === 'allow' ? 'working' : 'thinking')
     }
     this.alert('resolved', p.approval.sessionKey)
@@ -810,8 +825,8 @@ class SessionStore extends EventEmitter {
     p.resolve(adapterFor(p.approval.agent).decision(null))
     const s = this.sessions.get(p.approval.sessionKey)
     if (s) {
-      s.notice = `Approval moved to ${s.host.app}`
-      this.push(s, { kind: 'notice', verb: 'Timed out', target: 'Answer in the agent' })
+      s.notice = tr('Approval moved to {0}', s.host.app)
+      this.push(s, { kind: 'notice', verb: tr('Timed out'), target: tr('Answer in the agent') })
       this.setPhase(s, 'waiting')
     }
     this.alert('resolved', p.approval.sessionKey)
@@ -881,7 +896,7 @@ class SessionStore extends EventEmitter {
       const pid = this.agentPids.get(s.key)
       if (s.alive && pid && !pidAlive(pid)) {
         this.resolveSessionPending(s.key, 'process exited')
-        this.end(s, `${adapterFor(s.agent).descriptor.name} is no longer running`)
+        this.end(s, tr('{0} is no longer running', adapterFor(s.agent).descriptor.name))
         dirty = true
         continue
       }
@@ -889,7 +904,7 @@ class SessionStore extends EventEmitter {
       if (s.alive && (s.phase === 'working' || s.phase === 'thinking') && quiet > STALE_MS) {
         this.setPhase(s, 'idle')
         s.current = undefined
-        s.notice = 'No activity for a while'
+        s.notice = tr('No activity for a while')
         dirty = true
       }
       if ((s.phase === 'ended' && quiet > FORGET_ENDED_MS) || (!s.alive && quiet > FORGET_DONE_MS) || ((s.phase === 'done' || s.phase === 'idle') && quiet > FORGET_DONE_MS)) {

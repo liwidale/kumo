@@ -693,13 +693,6 @@ body.island-body {
   color: var(--text-3);
 }
 
-.agent-letter {
-  display: inline-grid;
-  place-items: center;
-  font-weight: 700;
-  line-height: 1;
-}
-
 .menu-wrap {
   position: relative;
   display: inline-flex;
@@ -3172,4 +3165,75 @@ body.island-body {
 }
 .tip-above {
   translate: -50% -100%;
+}
+
+.ask .ask-question {
+  font-size: 15px;
+  line-height: 1.35;
+}
+.ask .ask-options {
+  margin: 0;
+}
+.ask .ask-input {
+  min-height: 40px;
+}
+
+.welcome-row {
+  cursor: default;
+}
+.welcome-box {
+  margin: 0;
+  width: 14px;
+  height: 14px;
+  accent-color: var(--primary-bg);
+  flex: none;
+}
+.welcome-check {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  background: var(--green-soft);
+  color: var(--green);
+}
+.welcome-state {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.welcome-tag {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--fill);
+  color: var(--text-3);
+  font-size: 10.5px;
+}
+.welcome-option {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 12.5px;
+  color: var(--text-2);
+  padding: 0 2px;
+}
+.welcome-lang {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.welcome-lang select {
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text);
+  background: var(--raised);
+  border: 0.5px solid var(--hairline-strong);
+  border-radius: var(--r-sm);
+  padding: 4px 8px;
+}
+.welcome-actions .spacer {
+  flex: 1;
 }

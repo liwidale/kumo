@@ -25,12 +25,15 @@ jobs:
             pack: pack:win
             files: |
               release/*.exe
+              release/*.blockmap
+              release/latest.yml
           - name: macOS
             os: macos-latest
             pack: pack:mac
             files: |
               release/*.dmg
               release/*.zip
+              release/latest-mac.yml
     steps:
       - uses: actions/checkout@v5
 

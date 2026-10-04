@@ -11,16 +11,29 @@ import type {
   DisplayInfo,
   GitInfo,
   HookPreview,
-  IntegrationId,
+  InstalledAgents,
   IntegrationStatus,
   LaunchRequest,
+  McpClientStatus,
   ModelInfo,
   ProviderInfo,
   Result,
   Settings,
   SettingsSection,
   Snapshot,
+  UpdateState,
 } from './types'
+
+export interface AgentNoteEvent {
+  agent: string
+  agentName: string
+  project: string
+  title: string
+  text: string
+  sessionKey?: string
+}
+
+export type AlertKind = 'approval' | 'done' | 'error' | 'question' | 'waiting' | 'resolved' | 'ask' | 'message'
 
 export interface PointerInfo {
   x: number
@@ -49,7 +62,7 @@ export interface KumoApi {
   onDisplay(cb: (d: DisplayInfo) => void): () => void
   onPointer(cb: (p: PointerInfo) => void): () => void
   onCommand(cb: (c: IslandCommand) => void): () => void
-  onAlert(cb: (a: { kind: 'approval' | 'done' | 'error' | 'question' | 'waiting' | 'resolved'; sessionKey: string }) => void): () => void
+  onAlert(cb: (a: { kind: AlertKind; sessionKey: string; note?: AgentNoteEvent }) => void): () => void
   setHitRect(r: { x: number; y: number; w: number; h: number } | null): void
   setFocusable(focus: boolean): void
   setExpanded(expanded: boolean): void
@@ -97,8 +110,16 @@ export interface KumoApi {
   onChat(cb: (e: ChatEvent) => void): () => void
 
   integrations(): Promise<IntegrationStatus[]>
-  previewHooks(id: IntegrationId | 'claude-limits', install: boolean): Promise<Result<HookPreview>>
-  applyHooks(id: IntegrationId | 'claude-limits', install: boolean, fingerprint: string): Promise<Result<string>>
+  previewHooks(id: HookPreview['integration'], install: boolean): Promise<Result<HookPreview>>
+  applyHooks(id: HookPreview['integration'], install: boolean, fingerprint: string): Promise<Result<string>>
+  mcpStatus(): Promise<McpClientStatus[]>
+  answerAsk(id: string, text: string | null): Promise<Result>
+  checkUpdates(): Promise<UpdateState>
+  installUpdate(): Promise<void>
+  refreshAgents(): Promise<InstalledAgents>
+  hideLauncher(): void
+  setLauncherHeight(h: number): void
+  onLauncher(cb: (e: 'show' | 'hide') => void): () => void
   setSecret(provider: string, key: string): Promise<Result>
   hasSecret(provider: string): Promise<boolean>
   relayCommand(agent: string): Promise<string>

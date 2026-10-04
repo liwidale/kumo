@@ -4,11 +4,12 @@ import fs from 'node:fs'
 import path from 'node:path'
 import type { ActiveWindow, LaunchRequest, Result, Session } from '../../shared/types'
 import { context, describeForAgent } from '../context'
-import { antigravityExe, cursorExe, detectInstalled, editorApp, macApp } from '../detect'
+import { antigravityExe, cursorExe, detectInstalled, editorApp, macApp, windsurfExe } from '../detect'
 import { settings } from '../settings'
 import { exists, isMac, isWin, log, which } from '../util'
 import * as mac from './darwin'
 import * as win from './win32'
+import { tr } from '../i18n'
 
 
 let lastActive: ActiveWindow | null = null
@@ -31,12 +32,12 @@ export function lastActiveWindow(): ActiveWindow | null {
 }
 
 export async function returnTo(w: ActiveWindow | null): Promise<Result> {
-  if (!w) return { ok: false, error: 'Nothing to go back to.' }
+  if (!w) return { ok: false, error: tr('Nothing to go back to.') }
   if (isWin && w.handle && win.focusHandle(w.handle)) return { ok: true }
   if (isWin && win.focusPids([w.pid])) return { ok: true }
   if (isMac && w.handle && (await mac.activateBundle(w.handle))) return { ok: true }
   if (isMac && (await mac.activateApp(w.app))) return { ok: true }
-  return { ok: false, error: `${w.app} is no longer open.` }
+  return { ok: false, error: tr('{0} is no longer open.', w.app) }
 }
 
 export async function jumpTo(s: Session): Promise<Result> {
@@ -47,22 +48,23 @@ export async function jumpTo(s: Session): Promise<Result> {
       if (s.host.kind === 'desktop' && app === 'Claude' && win.focusApp(/^claude\.exe$/i)) return { ok: true }
       if (app === 'Antigravity' && win.focusApp(/^antigravity\.exe$/i)) return { ok: true }
       if (app === 'Cursor' && win.focusApp(/^cursor\.exe$/i)) return { ok: true }
+      if (app === 'Windsurf' && win.focusApp(/^windsurf\.exe$/i)) return { ok: true }
     } else if (isMac) {
       if (await mac.focusHost(s.host, s.cwd)) return { ok: true }
     }
   } catch (e) {
     log('jump failed', e)
   }
-  if (!s.alive) return { ok: false, error: `${app} for this session isn't open anymore.` }
+  if (!s.alive) return { ok: false, error: tr('{0} for this session isn\'t open anymore.', app) }
   if (s.cwd && exists(s.cwd)) {
     const r = await openInEditor(s.cwd)
-    if (r.ok) return { ok: true, error: `Couldn't find the ${app} window, opened the project instead.` }
+    if (r.ok) return { ok: true, error: tr('Couldn\'t find the {0} window, opened the project instead.', app) }
   }
-  return { ok: false, error: `Couldn't bring ${app} forward.` }
+  return { ok: false, error: tr('Couldn\'t bring {0} forward.', app) }
 }
 
 export async function openFolder(p: string): Promise<Result> {
-  if (!p || !exists(p)) return { ok: false, error: 'That folder no longer exists.' }
+  if (!p || !exists(p)) return { ok: false, error: tr('That folder no longer exists.') }
   const err = await shell.openPath(p)
   return err ? { ok: false, error: err } : { ok: true }
 }
@@ -92,7 +94,7 @@ function openApp(args: string[]): Promise<boolean> {
 
 export async function openInEditor(target: string, cwd?: string): Promise<Result> {
   const full = cwd && !path.isAbsolute(target) ? path.join(cwd, target) : target
-  if (!exists(full)) return { ok: false, error: 'That file no longer exists.' }
+  if (!exists(full)) return { ok: false, error: tr('That file no longer exists.') }
   const pref = settings.get().editor
   const order = pref !== 'auto' && pref !== 'system' ? [pref] : pref === 'system' ? [] : ['code', 'cursor', 'zed', 'windsurf', 'antigravity']
   for (const ed of order) {
@@ -136,8 +138,6 @@ async function inTerminal(cwd: string, argv: string[]): Promise<boolean> {
     if (ghostty) {
       const command = argv.map(sq).join(' ')
       if (await mac.ghosttyWindow(cwd, command)) return true
-      // Not running yet, so its launch args shape the first window. Typing the command into
-      // the user's own shell (like Terminal does) keeps the shell open when the agent exits.
       return openApp(['-na', ghostty, '--args', `--working-directory=${cwd}`, `--input=raw:${command.replace(/\\/g, '\\\\')}\\n`])
     }
     const app = pref === 'iTerm' && macApp('iTerm') ? 'iTerm' : 'Terminal'
@@ -150,38 +150,47 @@ async function inTerminal(cwd: string, argv: string[]): Promise<boolean> {
   return detached('x-terminal-emulator', ['-e', ...argv], cwd)
 }
 
+const CLIS: Record<'copilot-cli' | 'qwen-cli' | 'opencode-cli' | 'kiro-cli' | 'amp-cli' | 'aider-cli', { name: string; bin: string; installed: 'copilotCli' | 'qwenCli' | 'opencodeCli' | 'kiroCli' | 'ampCli' | 'aiderCli'; base?: string[]; prompt?: (p: string) => string[] }> = {
+  'copilot-cli': { name: 'Copilot CLI', bin: 'copilot', installed: 'copilotCli', prompt: (p) => ['-i', p] },
+  'qwen-cli': { name: 'Qwen Code', bin: 'qwen', installed: 'qwenCli', prompt: (p) => ['-i', p] },
+  'opencode-cli': { name: 'OpenCode', bin: 'opencode', installed: 'opencodeCli', prompt: (p) => ['--prompt', p] },
+  'kiro-cli': { name: 'Kiro CLI', bin: 'kiro-cli', installed: 'kiroCli', base: ['chat'], prompt: (p) => ['chat', p] },
+  'amp-cli': { name: 'Amp', bin: 'amp', installed: 'ampCli' },
+  'aider-cli': { name: 'Aider', bin: 'aider', installed: 'aiderCli' },
+}
+
 export async function launch(req: LaunchRequest): Promise<Result<string>> {
-  if (!req.cwd || !exists(req.cwd)) return { ok: false, error: 'Pick a project folder first.' }
+  if (!req.cwd || !exists(req.cwd)) return { ok: false, error: tr('Pick a project folder first.') }
   const prompt = promptWithContext(req)
   const inst = detectInstalled()
   switch (req.target) {
     case 'claude-cli': {
-      if (!inst.claudeCli) return { ok: false, error: 'Claude Code CLI was not found on PATH.' }
+      if (!inst.claudeCli) return { ok: false, error: tr('Claude Code CLI was not found on PATH.') }
       const ok = await inTerminal(req.cwd, prompt ? ['claude', prompt] : ['claude'])
-      return ok ? { ok: true, value: 'Started Claude Code in a new terminal.' } : { ok: false, error: 'Could not open a terminal.' }
+      return ok ? { ok: true, value: tr('Started Claude Code in a new terminal.') } : { ok: false, error: tr('Could not open a terminal.') }
     }
     case 'agy-cli': {
-      if (!inst.agyCli) return { ok: false, error: 'Antigravity CLI (agy) was not found on PATH.' }
+      if (!inst.agyCli) return { ok: false, error: tr('Antigravity CLI (agy) was not found on PATH.') }
       if (prompt) clipboard.writeText(prompt)
       const ok = await inTerminal(req.cwd, ['agy'])
-      return ok ? { ok: true, value: prompt ? 'Started agy - your prompt is on the clipboard.' : 'Started agy.' } : { ok: false, error: 'Could not open a terminal.' }
+      return ok ? { ok: true, value: prompt ? tr('Started agy - your prompt is on the clipboard.') : tr('Started agy.') } : { ok: false, error: tr('Could not open a terminal.') }
     }
     case 'claude-desktop': {
       if (prompt) clipboard.writeText(prompt)
       let ok = false
       if (isMac) ok = await mac.activateApp('Claude')
       else if (isWin) ok = win.focusApp(/^claude\.exe$/i) || (await detached('explorer.exe', ['shell:AppsFolder\\Claude_pzs8sxrjxfjjc!Claude']))
-      return ok ? { ok: true, value: prompt ? 'Claude is open - paste your prompt (it’s on the clipboard).' : 'Claude is open.' } : { ok: false, error: 'Claude Desktop could not be opened.' }
+      return ok ? { ok: true, value: prompt ? tr('Claude is open - paste your prompt (it’s on the clipboard).') : tr('Claude is open.') } : { ok: false, error: tr('Claude Desktop could not be opened.') }
     }
     case 'codex-cli': {
-      if (!inst.codexCli) return { ok: false, error: 'Codex CLI was not found on PATH.' }
+      if (!inst.codexCli) return { ok: false, error: tr('Codex CLI was not found on PATH.') }
       const ok = await inTerminal(req.cwd, prompt ? ['codex', prompt] : ['codex'])
-      return ok ? { ok: true, value: 'Started Codex in a new terminal.' } : { ok: false, error: 'Could not open a terminal.' }
+      return ok ? { ok: true, value: tr('Started Codex in a new terminal.') } : { ok: false, error: tr('Could not open a terminal.') }
     }
     case 'gemini-cli': {
-      if (!inst.geminiCli) return { ok: false, error: 'Gemini CLI was not found on PATH.' }
+      if (!inst.geminiCli) return { ok: false, error: tr('Gemini CLI was not found on PATH.') }
       const ok = await inTerminal(req.cwd, prompt ? ['gemini', '-i', prompt] : ['gemini'])
-      return ok ? { ok: true, value: 'Started Gemini CLI in a new terminal.' } : { ok: false, error: 'Could not open a terminal.' }
+      return ok ? { ok: true, value: tr('Started Gemini CLI in a new terminal.') } : { ok: false, error: tr('Could not open a terminal.') }
     }
     case 'cursor': {
       if (prompt) clipboard.writeText(prompt)
@@ -189,7 +198,29 @@ export async function launch(req: LaunchRequest): Promise<Result<string>> {
       let ok = false
       if (isMac) ok = await openApp(['-a', exe || 'Cursor', req.cwd])
       else if (exe) ok = await detached(exe, [req.cwd])
-      return ok ? { ok: true, value: prompt ? 'Cursor is opening the project - your prompt is on the clipboard.' : 'Cursor is opening the project.' } : { ok: false, error: 'Cursor could not be opened.' }
+      return ok ? { ok: true, value: prompt ? tr('Cursor is opening the project - your prompt is on the clipboard.') : tr('Cursor is opening the project.') } : { ok: false, error: tr('Cursor could not be opened.') }
+    }
+    case 'windsurf': {
+      if (prompt) clipboard.writeText(prompt)
+      const exe = windsurfExe()
+      let ok = false
+      if (isMac) ok = await openApp(['-a', exe || 'Windsurf', req.cwd])
+      else if (exe) ok = await detached(exe, [req.cwd])
+      return ok ? { ok: true, value: prompt ? tr('Windsurf is opening the project - your prompt is on the clipboard.') : tr('Windsurf is opening the project.') } : { ok: false, error: tr('Windsurf could not be opened.') }
+    }
+    case 'copilot-cli':
+    case 'qwen-cli':
+    case 'opencode-cli':
+    case 'kiro-cli':
+    case 'amp-cli':
+    case 'aider-cli': {
+      const cli = CLIS[req.target]
+      if (!inst[cli.installed]) return { ok: false, error: tr('{0} was not found on PATH.', cli.name) }
+      const argv = prompt && cli.prompt ? [cli.bin, ...cli.prompt(prompt)] : [cli.bin, ...(cli.base || [])]
+      if (prompt && !cli.prompt) clipboard.writeText(prompt)
+      const ok = await inTerminal(req.cwd, argv)
+      if (!ok) return { ok: false, error: tr('Could not open a terminal.') }
+      return { ok: true, value: prompt && !cli.prompt ? tr('Started {0} - your prompt is on the clipboard.', cli.name) : tr('Started {0} in a new terminal.', cli.name) }
     }
     case 'antigravity-desktop': {
       if (prompt) clipboard.writeText(prompt)
@@ -197,10 +228,10 @@ export async function launch(req: LaunchRequest): Promise<Result<string>> {
       let ok = false
       if (isMac) ok = await openApp(['-a', exe || 'Antigravity', req.cwd])
       else if (exe) ok = await detached(exe, [req.cwd])
-      return ok ? { ok: true, value: prompt ? 'Antigravity is opening the project - your prompt is on the clipboard.' : 'Antigravity is opening the project.' } : { ok: false, error: 'Antigravity could not be opened.' }
+      return ok ? { ok: true, value: prompt ? tr('Antigravity is opening the project - your prompt is on the clipboard.') : tr('Antigravity is opening the project.') } : { ok: false, error: tr('Antigravity could not be opened.') }
     }
   }
-  return { ok: false, error: 'Unknown target.' }
+  return { ok: false, error: tr('Unknown target.') }
 }
 
 export function isFullscreenInFront(physical: { x: number; y: number; width: number; height: number }): boolean {

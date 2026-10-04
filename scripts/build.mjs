@@ -17,7 +17,7 @@ const common = {
   format: 'cjs',
   sourcemap: dev ? 'inline' : false,
   minify: !dev,
-  external: ['electron', 'koffi'],
+  external: ['electron', 'koffi', 'electron-updater'],
   logLevel: 'warning',
 }
 
@@ -42,6 +42,7 @@ await vite({
       input: {
         island: path.join(root, 'src/renderer/island.html'),
         settings: path.join(root, 'src/renderer/settings.html'),
+        launcher: path.join(root, 'src/renderer/launcher.html'),
       },
     },
   },

@@ -1,3 +1,4 @@
+import { tr } from '../shared/i18n'
 import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { AgentDescriptor, Phase, Session } from '../../shared/types'
@@ -203,7 +204,7 @@ export function useAction() {
   const toast = useIsland((s) => s.showToast)
   return async (p: Promise<{ ok: boolean; error?: string; value?: unknown }>, success?: string): Promise<boolean> => {
     const r = await p
-    if (!r.ok) toast(r.error || 'Something went wrong', 'error')
+    if (!r.ok) toast(r.error || tr('Something went wrong'), 'error')
     else if (r.error) toast(r.error)
     else if (typeof r.value === 'string' && r.value) toast(r.value, 'success')
     else if (success) toast(success, 'success')

@@ -1,3 +1,4 @@
+import { tr } from '../../shared/i18n'
 import { useEffect, useState } from 'react'
 import type { GitInfo, Session, Step } from '../../../shared/types'
 import { activityLine, ago, base, busy, clock, PHASE_LABEL, phaseTone, shortPath } from '../../shared/format'
@@ -47,7 +48,7 @@ function toolIcon(s: Step): IconName {
 
 function Activity({ s, now }: { s: Session; now: number }) {
   const steps = [...s.steps].reverse()
-  if (!steps.length) return <div className="muted-note">Nothing has happened yet in this session.</div>
+  if (!steps.length) return <div className="muted-note">{tr('Nothing has happened yet in this session.')}</div>
   return (
     <div className="timeline scroll">
       {steps.map((st) => (
@@ -69,7 +70,7 @@ function Activity({ s, now }: { s: Session; now: number }) {
 function Files({ s }: { s: Session }) {
   const act = useAction()
   const files = [...s.files].sort((a, b) => (a.action === 'read' ? 1 : 0) - (b.action === 'read' ? 1 : 0) || b.at - a.at)
-  if (!files.length) return <div className="muted-note">No files touched yet.</div>
+  if (!files.length) return <div className="muted-note">{tr('No files touched yet.')}</div>
   return (
     <div className="file-list scroll">
       {files.map((f) => (
@@ -98,15 +99,15 @@ function Changes({ s }: { s: Session }) {
     }
     setConfirm(null)
     const r = await window.kumo.revertFile(s.cwd, p)
-    toast(r.ok ? `${base(p)} is back to the last commit` : r.error || 'Could not revert', r.ok ? 'success' : 'error')
+    toast(r.ok ? tr('{0} is back to the last commit', base(p)) : r.error || tr('Could not revert'), r.ok ? 'success' : 'error')
     load()
   }
   const load = (): void => {
     void window.kumo.git(s.cwd).then(setGit)
   }
   useEffect(load, [s.cwd, s.toolCount])
-  if (!git) return <div className="muted-note shimmer">Reading git status…</div>
-  if (!git.ok) return <div className="muted-note">{git.error === 'Not a git repository' ? 'This project isn’t a git repository, so there are no changes to compare.' : git.error}</div>
+  if (!git) return <div className="muted-note shimmer">{tr('Reading git status…')}</div>
+  if (!git.ok) return <div className="muted-note">{git.error === 'Not a git repository' ? tr('This project isn’t a git repository, so there are no changes to compare.') : git.error}</div>
   return (
     <div className="changes">
       <div className="changes-head">
@@ -115,11 +116,11 @@ function Changes({ s }: { s: Session }) {
         {git.ahead ? <span className="muted">↑{git.ahead}</span> : null}
         {git.behind ? <span className="muted">↓{git.behind}</span> : null}
         <span className="spacer" />
-        <span className="muted">{git.changes.length ? `${git.changes.length} changed` : 'Clean'}</span>
-        <IconButton icon="refresh" title="Refresh" onClick={load} size={13} className="tiny" />
+        <span className="muted">{git.changes.length ? tr('{0} changed', git.changes.length) : tr('Clean')}</span>
+        <IconButton icon="refresh" title={tr('Refresh')} onClick={load} size={13} className="tiny" />
       </div>
       {git.changes.length === 0 ? (
-        <div className="muted-note">Working tree is clean.</div>
+        <div className="muted-note">{tr('Working tree is clean.')}</div>
       ) : (
         <div className="file-list scroll">
           {git.changes.map((c) => (
@@ -142,10 +143,10 @@ function Changes({ s }: { s: Session }) {
               <button
                 type="button"
                 className={`revert-btn${confirm === c.path ? ' confirm' : ''}`}
-                title={c.status === '?' || c.status === 'A' ? 'Delete this new file' : 'Revert to the last commit'}
+                title={c.status === '?' || c.status === 'A' ? tr('Delete this new file') : tr('Revert to the last commit')}
                 onClick={() => void revert(c.path)}
               >
-                {confirm === c.path ? (c.status === '?' || c.status === 'A' ? 'Delete?' : 'Revert?') : <Icon name="refresh" size={12} />}
+                {confirm === c.path ? (c.status === '?' || c.status === 'A' ? tr('Delete?') : tr('Revert?')) : <Icon name="refresh" size={12} />}
               </button>
             </div>
           ))}
@@ -172,8 +173,8 @@ export function SessionDetail({ now }: { now: number }) {
 
   if (!snap || !s)
     return (
-      <EmptyState title="Session closed" body="This session is no longer available - its agent may have exited.">
-        <Button onClick={back}>Back</Button>
+      <EmptyState title={tr('Session closed')} body={tr('This session is no longer available - its agent may have exited.')}>
+        <Button onClick={back}>{tr('Back')}</Button>
       </EmptyState>
     )
   const agent = agentOf(snap.agents, s.agent)
@@ -185,7 +186,7 @@ export function SessionDetail({ now }: { now: number }) {
   return (
     <div className="detail">
       <div className="detail-head">
-        <IconButton icon="back" title="Back (Esc)" onClick={back} />
+        <IconButton icon="back" title={tr('Back (Esc)')} onClick={back} />
         <span className="session-glyph lg" style={{ ['--agent' as string]: agent.color }}>
           <AgentGlyph agent={agent.id} color={agent.color} size={15} mark={agent.mark} />
         </span>
@@ -197,23 +198,21 @@ export function SessionDetail({ now }: { now: number }) {
           </div>
         </div>
         {s.alive && (busy(s) || s.phase === 'waiting' || s.phase === 'question' || s.stopping) && (
-          <Button kind="secondary" icon="stop" disabled={s.stopping} onClick={() => void act(window.kumo.stopSession(s.key), 'Asked the agent to stop')} title="Stop the agent at its next step">
-            {s.stopping ? 'Stopping…' : 'Stop'}
+          <Button kind="secondary" icon="stop" disabled={s.stopping} onClick={() => void act(window.kumo.stopSession(s.key), tr('Asked the agent to stop'))} title={tr('Stop the agent at its next step')}>
+            {s.stopping ? tr('Stopping…') : tr('Stop')}
           </Button>
         )}
-        <Button kind="secondary" icon="jump" onClick={() => void act(window.kumo.jump(s.key))} disabled={!s.alive}>
-          Open
-        </Button>
+        <Button kind="secondary" icon="jump" onClick={() => void act(window.kumo.jump(s.key))} disabled={!s.alive}>{tr('Open')}</Button>
         <Menu
           align="right"
-          trigger={(_o, toggle) => <IconButton icon="more" title="More" onClick={toggle} />}
+          trigger={(_o, toggle) => <IconButton icon="more" title={tr('More')} onClick={toggle} />}
           items={[
-            { label: 'Open project folder', icon: 'folder', onClick: () => void act(window.kumo.openFolder(s.cwd)) },
-            { label: 'Open in editor', icon: 'edit', onClick: () => void act(window.kumo.openInEditor(s.cwd)) },
-            { label: 'Copy path', icon: 'copy', onClick: () => void window.kumo.copyText(s.cwd) },
+            { label: tr('Open project folder'), icon: 'folder', onClick: () => void act(window.kumo.openFolder(s.cwd)) },
+            { label: tr('Open in editor'), icon: 'edit', onClick: () => void act(window.kumo.openInEditor(s.cwd)) },
+            { label: tr('Copy path'), icon: 'copy', onClick: () => void window.kumo.copyText(s.cwd) },
             'sep',
-            ...(s.alive ? [{ label: 'End agent process…', icon: 'stop' as const, onClick: () => setConfirmKill(true) }] : []),
-            { label: s.alive ? 'Stop tracking' : 'Dismiss', icon: 'close', onClick: () => void window.kumo.dismiss(s.key).then(back) },
+            ...(s.alive ? [{ label: tr('End agent process…'), icon: 'stop' as const, onClick: () => setConfirmKill(true) }] : []),
+            { label: s.alive ? tr('Stop tracking') : tr('Dismiss'), icon: 'close', onClick: () => void window.kumo.dismiss(s.key).then(back) },
           ]}
         />
       </div>
@@ -221,19 +220,15 @@ export function SessionDetail({ now }: { now: number }) {
       {confirmKill && (
         <div className="banner banner-red confirm-banner">
           <Icon name="alert" size={14} />
-          <span>End {agent.name}’s process now? Unsaved work in that session may be lost.{s.host.kind === 'desktop' ? ` This may close the session in ${s.host.app}.` : ''}</span>
-          <Button kind="ghost" onClick={() => setConfirmKill(false)}>
-            Cancel
-          </Button>
+          <span>{tr('End the {0} process now? Unsaved work in that session may be lost.', agent.name)}{s.host.kind === 'desktop' ? ` ${tr('This may close the session in {0}.', s.host.app)}` : ''}</span>
+          <Button kind="ghost" onClick={() => setConfirmKill(false)}>{tr('Cancel')}</Button>
           <Button
             kind="danger"
             onClick={() => {
               setConfirmKill(false)
-              void act(window.kumo.stopSession(s.key, true), 'Agent process ended')
+              void act(window.kumo.stopSession(s.key, true), tr('Agent process ended'))
             }}
-          >
-            End
-          </Button>
+          >{tr('End')}</Button>
         </div>
       )}
 
@@ -255,10 +250,10 @@ export function SessionDetail({ now }: { now: number }) {
                     key={o}
                     type="button"
                     className="chip answer"
-                    title={`Copy “${o}” and switch to ${s.host.app}`}
+                    title={tr('Copy “{0}” and switch to {1}', o, s.host.app)}
                     onClick={() =>
                       void window.kumo.copyText(o).then(() => {
-                        toast(`Copied “${o}” - paste it in ${s.host.app}`, 'success')
+                        toast(tr('Copied “{0}” - paste it in {1}', o, s.host.app), 'success')
                         void window.kumo.jump(s.key)
                       })
                     }
@@ -269,9 +264,8 @@ export function SessionDetail({ now }: { now: number }) {
                 ))}
               </div>
             )}
-            <div className="muted small">Kumo can’t answer for you - pick an option to copy it and jump to {s.host.app}.</div>
-            <Button kind="primary" icon="jump" onClick={() => void act(window.kumo.jump(s.key))}>
-              Answer in {s.host.app}
+            <div className="muted small">{tr('Kumo can’t answer for you - pick an option to copy it and jump to {0}.', s.host.app)}</div>
+            <Button kind="primary" icon="jump" onClick={() => void act(window.kumo.jump(s.key))}>{tr('Answer in {0}', s.host.app)}
             </Button>
           </div>
         )}
@@ -294,18 +288,17 @@ export function SessionDetail({ now }: { now: number }) {
         )}
         <div className="status-stats">
           <span>
-            {s.toolCount} step{s.toolCount === 1 ? '' : 's'}
+            {tr('{0} step|{0} steps', s.toolCount)}
           </span>
           <span>
-            {edited} file{edited === 1 ? '' : 's'} changed
-          </span>
-          {s.errorCount > 0 && <span className="tone-text-red">{s.errorCount} failed</span>}
-          <span>started {ago(s.startedAt, now)} ago</span>
+            {tr('{0} file changed|{0} files changed', edited)}</span>
+          {s.errorCount > 0 && <span className="tone-text-red">{tr('{0} failed', s.errorCount)}</span>}
+          <span>{tr('started {0} ago', ago(s.startedAt, now))}</span>
           {s.usage && (s.usage.costUsd != null || s.usage.inTokens != null) && (
-            <span className="usage" title="Reported by the agent">
+            <span className="usage" title={tr('Reported by the agent')}>
               {s.usage.costUsd != null && <strong>${s.usage.costUsd < 0.01 ? s.usage.costUsd.toFixed(3) : s.usage.costUsd.toFixed(2)}</strong>}
-              {s.usage.inTokens != null && ` ${fmtTokens(s.usage.inTokens)} in`}
-              {s.usage.outTokens != null && ` · ${fmtTokens(s.usage.outTokens)} out`}
+              {s.usage.inTokens != null && ` ${tr('{0} in', fmtTokens(s.usage.inTokens))}`}
+              {s.usage.outTokens != null && ` · ${tr('{0} out', fmtTokens(s.usage.outTokens))}`}
             </span>
           )}
         </div>
@@ -324,7 +317,7 @@ export function SessionDetail({ now }: { now: number }) {
                 <div key={i} className="queued-item">
                   <Icon name="clock" size={12} />
                   <span className="queued-text">{q}</span>
-                  <button type="button" className="icon-btn tiny" title="Remove" onClick={() => void window.kumo.unqueueMessage(s.key, i)}>
+                  <button type="button" className="icon-btn tiny" title={tr('Remove')} onClick={() => void window.kumo.unqueueMessage(s.key, i)}>
                     <Icon name="close" size={11} />
                   </button>
                 </div>
@@ -339,16 +332,16 @@ export function SessionDetail({ now }: { now: number }) {
               if (!t) return
               void window.kumo.queueMessage(s.key, t).then((r) => {
                 if (r.ok) setFollowUp('')
-                toast(r.ok ? (busy(s) ? 'Queued - the agent gets it as soon as it finishes this turn' : 'Queued - the agent gets it when its next turn ends') : r.error || 'Could not queue', r.ok ? 'success' : 'error')
+                toast(r.ok ? (busy(s) ? tr('Queued - the agent gets it as soon as it finishes this turn') : tr('Queued - the agent gets it when its next turn ends')) : r.error || tr('Could not queue'), r.ok ? 'success' : 'error')
               })
             }}
           >
-            <input className="text-input" placeholder={busy(s) ? 'Tell the agent what to do next…' : 'Message for the agent’s next turn…'} value={followUp} onChange={(e) => setFollowUp(e.target.value)} />
-            <button type="submit" className="send-btn" disabled={!followUp.trim()} title="Queue for the agent">
+            <input className="text-input" placeholder={busy(s) ? tr('Tell the agent what to do next…') : tr('Message for the agent’s next turn…')} value={followUp} onChange={(e) => setFollowUp(e.target.value)} />
+            <button type="submit" className="send-btn" disabled={!followUp.trim()} title={tr('Queue for the agent')}>
               <Icon name="send" size={14} strokeWidth={1.8} />
             </button>
           </form>
-          <div className="muted small">{busy(s) ? 'Sent the moment the agent finishes this turn - it keeps going with your message.' : 'The agent is waiting in its own window; this is added when its next turn ends or starts.'}</div>
+          <div className="muted small">{busy(s) ? tr('Sent the moment the agent finishes this turn - it keeps going with your message.') : tr('The agent is waiting in its own window; this is added when its next turn ends or starts.')}</div>
         </div>
       )}
 
@@ -358,9 +351,9 @@ export function SessionDetail({ now }: { now: number }) {
           value={tab}
           onChange={setTab}
           options={[
-            { value: 'activity', label: 'Activity' },
-            { value: 'files', label: 'Files', badge: s.files.length || undefined },
-            { value: 'changes', label: 'Changes' },
+            { value: 'activity', label: tr('Activity') },
+            { value: 'files', label: tr('Files'), badge: s.files.length || undefined },
+            { value: 'changes', label: tr('Changes') },
           ]}
         />
       </div>
@@ -373,8 +366,8 @@ export function SessionDetail({ now }: { now: number }) {
           <Icon name="clip" size={13} />
           <span>
             {bound.filter((b) => !b.delivered).length
-              ? `${bound.filter((b) => !b.delivered).length} item${bound.filter((b) => !b.delivered).length > 1 ? 's' : ''} will be shared on the next turn`
-              : `${bound.length} item${bound.length > 1 ? 's' : ''} shared with this session`}
+              ? tr('{0} item will be shared on the next turn|{0} items will be shared on the next turn', bound.filter((b) => !b.delivered).length)
+              : tr('{0} item shared with this session|{0} items shared with this session', bound.length)}
           </span>
         </div>
       )}
@@ -386,17 +379,15 @@ export function SessionDetail({ now }: { now: number }) {
             setChat({ sessionKey: s.key, current: null, draft: '' })
             open('chat')
           }}
-        >
-          Ask about this
-        </Button>
+        >{tr('Ask about this')}</Button>
         {agent.capabilities.contextInjection && s.alive && (
           <Button
             icon="clip"
             disabled={!unbound.length}
-            title={unbound.length ? 'Share the items in your context tray with this session' : 'Drop files on Kumo first'}
-            onClick={() => void act(window.kumo.bindContext(unbound.map((u) => u.id), s.key), `Shared with ${s.project} on its next turn`)}
+            title={unbound.length ? tr('Share the items in your context tray with this session') : tr('Drop files on Kumo first')}
+            onClick={() => void act(window.kumo.bindContext(unbound.map((u) => u.id), s.key), tr('Shared with {0} on its next turn', s.project))}
           >
-            {unbound.length ? `Share ${unbound.length} item${unbound.length > 1 ? 's' : ''}` : 'Share context'}
+            {unbound.length ? tr('Share {0} item|Share {0} items', unbound.length) : tr('Share context')}
           </Button>
         )}
       </div>

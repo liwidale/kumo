@@ -1,3 +1,4 @@
+import { tr } from '../../shared/i18n'
 import { motion } from 'motion/react'
 import { useEffect, useState } from 'react'
 import type { ActiveWindow, ContextItem } from '../../../shared/types'
@@ -18,13 +19,13 @@ function Item({ it, sessionName }: { it: ContextItem; sessionName?: string }) {
         <span className="ctx-name">{it.name}</span>
         <span className="ctx-meta">
           {it.missing
-            ? 'File moved or deleted'
+            ? tr('File moved or deleted')
             : sessionName
-              ? `${it.delivered ? 'Shared with' : 'Waiting for'} ${sessionName}`
+              ? it.delivered ? tr('Shared with {0}', sessionName) : tr('Waiting for {0}', sessionName)
               : [it.kind === 'window' ? it.appName || 'Window' : it.kind === 'text' ? 'Snippet' : it.kind === 'folder' ? 'Folder' : null, bytes(it.size)].filter(Boolean).join(' · ')}
         </span>
       </span>
-      <button className="icon-btn tiny" title="Remove" onClick={() => void window.kumo.removeContext(it.id)}>
+      <button className="icon-btn tiny" title={tr('Remove')} onClick={() => void window.kumo.removeContext(it.id)}>
         <Icon name="close" size={12} />
       </button>
     </div>
@@ -60,28 +61,25 @@ export function Context() {
     <div className="context">
       <div className="drop-mini">
         <Icon name="inbox" size={16} />
-        <span>Drop files here, or</span>
-        <button className="link" onClick={() => void pick()}>
-          choose files
-        </button>
+        <span>{tr('Drop files here, or')}</span>
+        <button className="link" onClick={() => void pick()}>{tr('choose files')}</button>
         {activeWin && (
           <>
             <span>·</span>
-            <button className="link" onClick={() => void act(window.kumo.captureWindow(), `Captured ${activeWin.app}`)}>
-              capture {activeWin.app}
+            <button className="link" onClick={() => void act(window.kumo.captureWindow(), tr('Captured {0}', activeWin.app))}>{tr('capture {0}', activeWin.app)}
             </button>
           </>
         )}
       </div>
 
       {items.length === 0 ? (
-        <div className="muted-note center">Context you add here can go to a chat, a running session, or a new one. It stays on this computer.</div>
+        <div className="muted-note center">{tr('Context you add here can go to a chat, a running session, or a new one. It stays on this computer.')}</div>
       ) : (
         <div className="ctx-list scroll">
           {loose.map((it) => (
             <Item key={it.id} it={it} />
           ))}
-          {bound.length > 0 && <SectionLabel>Shared with sessions</SectionLabel>}
+          {bound.length > 0 && <SectionLabel>{tr('Shared with sessions')}</SectionLabel>}
           {bound.map((it) => (
             <Item key={it.id} it={it} sessionName={nameOf(it.sessionKey)} />
           ))}
@@ -96,8 +94,8 @@ export function Context() {
           void window.kumo.addText(note.trim()).then(() => setNote(''))
         }}
       >
-        <input className="text-input" placeholder="Add a note or paste a snippet…" value={note} onChange={(e) => setNote(e.target.value)} />
-        <button type="submit" className="icon-btn" title="Add" aria-label="Add" disabled={!note.trim()}>
+        <input className="text-input" placeholder={tr('Add a note or paste a snippet…')} value={note} onChange={(e) => setNote(e.target.value)} />
+        <button type="submit" className="icon-btn" title={tr('Add')} aria-label={tr('Add')} disabled={!note.trim()}>
           <Icon name="plus" size={16} />
         </button>
       </form>
@@ -111,36 +109,30 @@ export function Context() {
               setChat({ attachments: loose.map((l) => l.id), current: null })
               open('chat')
             }}
-          >
-            Ask in chat
-          </Button>
+          >{tr('Ask in chat')}</Button>
           <Menu
             up
             trigger={(_o, toggle) => (
-              <Button icon="clip" onClick={toggle} disabled={!live.length} title={live.length ? 'Hand these to a running session on its next turn' : 'No running sessions'}>
-                Share with session
-              </Button>
+              <Button icon="clip" onClick={toggle} disabled={!live.length} title={live.length ? tr('Hand these to a running session on its next turn') : tr('No running sessions')}>{tr('Share with session')}</Button>
             )}
             items={live.map((s) => ({
               label: s.project,
-              hint: s.agent === 'antigravity' ? 'Antigravity' : 'Claude Code',
-              onClick: () => void act(window.kumo.bindContext(loose.map((l) => l.id), s.key), `Will share with ${s.project} on its next turn`),
+              hint: s.agent === 'antigravity' ? tr('Antigravity') : tr('Claude Code'),
+              onClick: () => void act(window.kumo.bindContext(loose.map((l) => l.id), s.key), tr('Will share with {0} on its next turn', s.project)),
             }))}
           />
-          <Button icon="plus" onClick={() => open('launch')}>
-            New session
-          </Button>
+          <Button icon="plus" onClick={() => open('launch')}>{tr('New session')}</Button>
           <span className="spacer" />
           <IconButton
             icon="copy"
-            title="Copy as @paths"
+            title={tr('Copy as @paths')}
             onClick={() => {
               const paths = loose.filter((l) => l.path).map((l) => `@${l.path}`)
               void window.kumo.copyText(paths.join(' '))
-              toast('Copied - paste into your agent', 'success')
+              toast(tr('Copied - paste into your agent'), 'success')
             }}
           />
-          <IconButton icon="trash" title="Clear" onClick={() => void window.kumo.clearContext()} />
+          <IconButton icon="trash" title={tr('Clear')} onClick={() => void window.kumo.clearContext()} />
         </div>
       )}
     </div>
@@ -155,8 +147,8 @@ export function DropZone() {
         <motion.span animate={{ y: [0, -3, 0] }} transition={{ repeat: Infinity, duration: 1.4, ease: 'easeInOut' }}>
           <Icon name="inbox" size={22} />
         </motion.span>
-        <div className="dropzone-title">{toChat ? 'Drop to attach to this chat' : 'Drop to add context'}</div>
-        <div className="dropzone-body">{toChat ? 'Images and files go with your next message.' : 'Files stay on this computer. Use them in chat, or hand them to a session.'}</div>
+        <div className="dropzone-title">{toChat ? tr('Drop to attach to this chat') : tr('Drop to add context')}</div>
+        <div className="dropzone-body">{toChat ? tr('Images and files go with your next message.') : tr('Files stay on this computer. Use them in chat, or hand them to a session.')}</div>
       </motion.div>
     </div>
   )

@@ -56,7 +56,7 @@ export interface Adapter {
   ack(event: AgentEvent): string
   continueWith(text: string, event: AgentEvent): string | null
   halt(rawEvent: string, event: AgentEvent): string
-  routing?: 'antigravity' | 'gemini' | 'cursor'
+  routing?: 'antigravity' | 'gemini' | 'cursor' | 'windsurf' | 'kiro' | 'opencode' | 'amp' | 'cline'
   guarded?: Set<string>
 }
 
@@ -405,6 +405,337 @@ const cursor: Adapter = {
 }
 
 
+const json = (v: unknown): string => JSON.stringify(v)
+const exit2 = (message: string): string => json({ __kumo_exit: 2, stderr: message })
+const obj = (v: unknown): Record<string, unknown> => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {})
+
+const COPILOT_TOOLS: Record<string, (i: Record<string, unknown>) => { name: string; input: Record<string, unknown> }> = {
+  bash: (i) => ({ name: 'Bash', input: { command: s(i.command), description: s(i.description) } }),
+  powershell: (i) => ({ name: 'Bash', input: { command: s(i.command), description: s(i.description) } }),
+  write_bash: (i) => ({ name: 'Bash', input: { command: s(i.input) || s(i.command) } }),
+  view: (i) => ({ name: 'Read', input: { file_path: s(i.path) } }),
+  create: (i) => ({ name: 'Write', input: { file_path: s(i.path), content: s(i.file_text) } }),
+  edit: (i) => ({ name: 'Edit', input: { file_path: s(i.path), old_string: s(i.old_str), new_string: s(i.new_str) } }),
+  str_replace: (i) => ({ name: 'Edit', input: { file_path: s(i.path), old_string: s(i.old_str), new_string: s(i.new_str) } }),
+  glob: (i) => ({ name: 'Glob', input: { pattern: s(i.pattern) } }),
+  grep: (i) => ({ name: 'Grep', input: { pattern: s(i.pattern) } }),
+  web_fetch: (i) => ({ name: 'WebFetch', input: { url: s(i.url) } }),
+  task: (i) => ({ name: 'Task', input: { description: s(i.description), prompt: s(i.prompt), subagent_type: s(i.agent_type) || 'agent' } }),
+  update_todo: (i) => ({ name: 'TodoWrite', input: { todos: i.todos } }),
+}
+
+const copilot: Adapter = {
+  descriptor: {
+    id: 'copilot',
+    name: 'Copilot CLI',
+    mark: 'G',
+    color: '#C9CDD6',
+    capabilities: { approvals: true, contextInjection: false, launch: true },
+  },
+  normalize({ event, payload: p, cwd }) {
+    const base = { sessionId: s(p.sessionId) || s(p.session_id) || 'default', cwd: s(p.cwd) || cwd, transcript: s(p.transcriptPath) || undefined }
+    const raw = s(p.toolName)
+    const args = obj(parseMaybe(p.toolArgs))
+    const map = COPILOT_TOOLS[raw.toLowerCase()]
+    const tool = map ? map(args) : { name: raw, input: parseMaybe(p.toolArgs) }
+    switch (event) {
+      case 'sessionStart':
+      case 'SessionStart':
+        return { ...base, type: 'session-start', prompt: s(p.initialPrompt) || undefined }
+      case 'userPromptSubmitted':
+      case 'UserPromptSubmit':
+        return { ...base, type: 'prompt', prompt: s(p.prompt) }
+      case 'preToolUse':
+      case 'PreToolUse':
+        return { ...base, type: 'tool-start', tool }
+      case 'postToolUse':
+      case 'PostToolUse':
+        return { ...base, type: 'tool-end', tool }
+      case 'postToolUseFailure':
+      case 'PostToolUseFailure':
+        return { ...base, type: 'tool-end', tool: { ...tool, error: truncate(s(p.error) || 'Failed', 300) } }
+      case 'permissionRequest':
+      case 'PermissionRequest':
+        return { ...base, type: 'approval', tool }
+      case 'notification': {
+        const kind = s(p.notification_type)
+        return { ...base, type: 'notification', notification: { kind: kind === 'permission_prompt' || kind === 'elicitation_dialog' ? kind : kind === 'agent_idle' ? 'idle_prompt' : kind, message: s(p.message) } }
+      }
+      case 'agentStop':
+      case 'Stop':
+        return { ...base, type: 'stop' }
+      case 'errorOccurred':
+      case 'ErrorOccurred':
+        return obj(p).recoverable === false ? { ...base, type: 'stop-failure', error: s(p.error) || 'The agent stopped with an error' } : { ...base, type: 'ignore' }
+      case 'subagentStart':
+        return { ...base, type: 'subagent-start', title: s(p.agentDisplayName) || s(p.agentName) || undefined }
+      case 'subagentStop':
+      case 'SubagentStop':
+        return { ...base, type: 'subagent-stop', title: s(p.agentName) || undefined }
+      case 'sessionEnd':
+      case 'SessionEnd':
+        return { ...base, type: 'session-end' }
+      default:
+        return { ...base, type: 'ignore' }
+    }
+  },
+  decision(d) {
+    if (!d) return ''
+    return json(d.behavior === 'allow' ? { behavior: 'allow' } : { behavior: 'deny', message: d.message || 'Declined in Kumo.' })
+  },
+  context() {
+    return ''
+  },
+  ack() {
+    return ''
+  },
+  continueWith(text) {
+    return json({ decision: 'block', reason: text })
+  },
+  halt(raw) {
+    if (raw === 'preToolUse' || raw === 'PreToolUse') return json({ permissionDecision: 'deny', permissionDecisionReason: 'Stopped from Kumo.' })
+    if (raw === 'permissionRequest' || raw === 'PermissionRequest') return json({ behavior: 'deny', message: 'Stopped from Kumo.', interrupt: true })
+    return ''
+  },
+}
+
+const qwen: Adapter = {
+  ...claude,
+  descriptor: {
+    id: 'qwen',
+    name: 'Qwen Code',
+    mark: 'Q',
+    color: '#9B8CFF',
+    capabilities: { approvals: true, contextInjection: true, launch: true },
+  },
+}
+
+const windsurf: Adapter = {
+  descriptor: {
+    id: 'windsurf',
+    name: 'Windsurf',
+    mark: 'W',
+    color: '#5EC4B6',
+    capabilities: { approvals: true, contextInjection: false, launch: true },
+  },
+  normalize({ event, payload: p, cwd }) {
+    const info = obj(p.tool_info)
+    const base = { sessionId: s(p.trajectory_id) || 'default', cwd: s(info.cwd) || cwd, model: s(p.model_name) || undefined }
+    const useId = s(p.execution_id) || undefined
+    const edits = Array.isArray(info.edits) ? (info.edits as Record<string, unknown>[]) : []
+    const file = { file_path: s(info.file_path) }
+    const mcp = `mcp__${s(info.mcp_server_name) || 'mcp'}__${s(info.mcp_tool_name)}`
+    switch (event) {
+      case 'pre_user_prompt':
+        return { ...base, type: 'prompt', prompt: s(info.user_prompt) }
+      case 'pre_read_code':
+        return { ...base, type: 'tool-start', tool: { name: 'Read', input: file, useId } }
+      case 'post_read_code':
+        return { ...base, type: 'tool-end', tool: { name: 'Read', input: file, useId } }
+      case 'pre_write_code':
+        return { ...base, type: 'tool-start', gate: true, tool: { name: 'Edit', input: { ...file, old_string: s(edits[0]?.old_string), new_string: s(edits[0]?.new_string) }, useId } }
+      case 'post_write_code':
+        return { ...base, type: 'tool-end', tool: { name: 'Edit', input: file, useId } }
+      case 'pre_run_command':
+        return { ...base, type: 'tool-start', gate: true, tool: { name: 'Bash', input: { command: s(info.command_line) }, useId } }
+      case 'post_run_command':
+        return { ...base, type: 'tool-end', tool: { name: 'Bash', input: { command: s(info.command_line) }, useId } }
+      case 'pre_mcp_tool_use':
+        return { ...base, type: 'tool-start', gate: true, tool: { name: mcp, input: info.mcp_tool_arguments, useId } }
+      case 'post_mcp_tool_use':
+        return { ...base, type: 'tool-end', tool: { name: mcp, input: info.mcp_tool_arguments, useId } }
+      case 'post_cascade_response':
+        return { ...base, type: 'stop', summary: s(info.response) }
+      default:
+        return { ...base, type: 'ignore' }
+    }
+  },
+  decision(d) {
+    if (!d || d.behavior === 'allow') return ''
+    return exit2(d.message || 'Declined in Kumo.')
+  },
+  context() {
+    return ''
+  },
+  ack() {
+    return ''
+  },
+  continueWith() {
+    return null
+  },
+  halt(raw) {
+    return raw.startsWith('pre_') ? exit2('Stopped from Kumo. Stop working on this task.') : ''
+  },
+  routing: 'windsurf',
+}
+
+const KIRO_TOOLS: Record<string, (i: Record<string, unknown>) => { name: string; input: Record<string, unknown> }> = {
+  execute_bash: (i) => ({ name: 'Bash', input: { command: s(i.command) } }),
+  execute_cmd: (i) => ({ name: 'Bash', input: { command: s(i.command) } }),
+  fs_read: (i) => ({ name: 'Read', input: { file_path: s(i.path) || s(obj((i.operations as unknown[] | undefined)?.[0]).path) } }),
+  fs_write: (i) =>
+    s(i.command) === 'create'
+      ? { name: 'Write', input: { file_path: s(i.path), content: s(i.file_text) } }
+      : { name: 'Edit', input: { file_path: s(i.path), old_string: s(i.old_str), new_string: s(i.new_str) } },
+}
+
+const kiro: Adapter = {
+  descriptor: {
+    id: 'kiro',
+    name: 'Kiro CLI',
+    mark: 'K',
+    color: '#B58CF0',
+    capabilities: { approvals: true, contextInjection: true, launch: true },
+  },
+  normalize({ event, payload: p, cwd }) {
+    const base = { sessionId: s(p.session_id) || 'default', cwd: s(p.cwd) || cwd }
+    const name = s(p.tool_name)
+    const map = KIRO_TOOLS[name]
+    const tool = map ? map(obj(p.tool_input)) : { name, input: p.tool_input }
+    switch (event) {
+      case 'SessionStart':
+      case 'agentSpawn':
+        return { ...base, type: 'session-start' }
+      case 'UserPromptSubmit':
+      case 'userPromptSubmit':
+        return { ...base, type: 'prompt', prompt: s(p.prompt) }
+      case 'PreToolUse':
+      case 'preToolUse':
+        return { ...base, type: 'tool-start', gate: true, tool }
+      case 'PostToolUse':
+      case 'postToolUse':
+        return { ...base, type: 'tool-end', tool }
+      case 'Stop':
+      case 'stop':
+        return { ...base, type: 'stop' }
+      default:
+        return { ...base, type: 'ignore' }
+    }
+  },
+  decision(d) {
+    if (!d || d.behavior === 'allow') return ''
+    return exit2(d.message || 'Declined in Kumo.')
+  },
+  context(text) {
+    return text
+  },
+  ack() {
+    return ''
+  },
+  continueWith() {
+    return null
+  },
+  halt(raw) {
+    return raw === 'PreToolUse' || raw === 'preToolUse' ? exit2('Stopped from Kumo. Stop working on this task.') : ''
+  },
+  routing: 'kiro',
+}
+
+const PLUGIN_TOOLS: Record<string, (i: Record<string, unknown>) => { name: string; input: Record<string, unknown> }> = {
+  bash: (i) => ({ name: 'Bash', input: { command: s(i.command) || s(i.cmd) } }),
+  execute_command: (i) => ({ name: 'Bash', input: { command: s(i.command) } }),
+  edit: (i) => ({ name: 'Edit', input: { file_path: s(i.filePath) || s(i.path), old_string: s(i.oldString) || s(i.old_str), new_string: s(i.newString) || s(i.new_str) } }),
+  edit_file: (i) => ({ name: 'Edit', input: { file_path: s(i.path), old_string: s(i.old_str), new_string: s(i.new_str) } }),
+  replace_in_file: (i) => ({ name: 'Edit', input: { file_path: s(i.path), old_string: '', new_string: s(i.diff) } }),
+  write: (i) => ({ name: 'Write', input: { file_path: s(i.filePath) || s(i.path), content: s(i.content) } }),
+  create_file: (i) => ({ name: 'Write', input: { file_path: s(i.path), content: s(i.content) } }),
+  write_to_file: (i) => ({ name: 'Write', input: { file_path: s(i.path), content: s(i.content) } }),
+  read: (i) => ({ name: 'Read', input: { file_path: s(i.filePath) || s(i.path) } }),
+  read_file: (i) => ({ name: 'Read', input: { file_path: s(i.path) } }),
+  grep: (i) => ({ name: 'Grep', input: { pattern: s(i.pattern) } }),
+  search_files: (i) => ({ name: 'Grep', input: { pattern: s(i.regex) || s(i.pattern) } }),
+  glob: (i) => ({ name: 'Glob', input: { pattern: s(i.pattern) || s(i.filePattern) } }),
+  list_files: (i) => ({ name: 'Glob', input: { pattern: s(i.path) } }),
+  webfetch: (i) => ({ name: 'WebFetch', input: { url: s(i.url) } }),
+  read_web_page: (i) => ({ name: 'WebFetch', input: { url: s(i.url) } }),
+  todowrite: (i) => ({ name: 'TodoWrite', input: { todos: i.todos } }),
+  todo_write: (i) => ({ name: 'TodoWrite', input: { todos: i.todos } }),
+  task: (i) => ({ name: 'Task', input: { description: s(i.description) || s(i.prompt), subagent_type: s(i.subagent_type) || 'agent' } }),
+}
+
+function pluginAdapter(id: 'opencode' | 'amp' | 'cline', name: string, mark: string, color: string, allow: unknown, deny: (m: string) => unknown, neutral: unknown): Adapter {
+  return {
+    descriptor: { id, name, mark, color, capabilities: { approvals: true, contextInjection: id === 'opencode', launch: id !== 'cline' } },
+    normalize({ event, payload: p, cwd }) {
+      const base = { sessionId: s(p.session_id) || 'default', cwd: s(p.cwd) || cwd, model: s(p.model) || undefined }
+      const raw = s(p.tool_name)
+      const map = PLUGIN_TOOLS[raw.toLowerCase()]
+      const tool = { ...(map ? map(obj(p.tool_input)) : { name: raw, input: p.tool_input }), useId: s(p.tool_use_id) || undefined }
+      switch (event) {
+        case 'session-start':
+          return { ...base, type: 'session-start' }
+        case 'prompt':
+          return { ...base, type: 'prompt', prompt: s(p.prompt) }
+        case 'turn-start':
+          return { ...base, type: 'turn-start' }
+        case 'tool-start':
+          return { ...base, type: 'tool-start', tool }
+        case 'tool-end':
+          return { ...base, type: 'tool-end', tool: { ...tool, error: s(p.error) || undefined } }
+        case 'permission':
+          return { ...base, type: 'gate', tool }
+        case 'stop':
+          return { ...base, type: 'stop', summary: s(p.summary) || undefined }
+        case 'error':
+          return { ...base, type: 'stop-failure', error: s(p.error) || 'The agent stopped with an error' }
+        case 'session-end':
+          return { ...base, type: 'session-end' }
+        default:
+          return { ...base, type: 'ignore' }
+      }
+    },
+    decision(d) {
+      if (!d) return json(neutral)
+      return json(d.behavior === 'allow' ? allow : deny(d.message || 'Declined in Kumo.'))
+    },
+    context(text) {
+      return json({ context: text })
+    },
+    ack(ev) {
+      return ev.type === 'gate' ? json(neutral) : '{}'
+    },
+    continueWith(text) {
+      return id === 'opencode' ? json({ followup: text }) : null
+    },
+    halt() {
+      return json({ ...(deny('Stopped from Kumo. Stop working on this task.') as Record<string, unknown>), halt: true })
+    },
+    routing: id,
+  }
+}
+
+const opencode = pluginAdapter('opencode', 'OpenCode', 'O', '#E6A15C', { status: 'allow' }, (m) => ({ status: 'deny', message: m }), { status: 'ask' })
+const amp = pluginAdapter('amp', 'Amp', 'A', '#EB7FA7', { action: 'allow' }, (m) => ({ action: 'reject-and-continue', message: m }), { action: 'allow' })
+const cline = pluginAdapter('cline', 'Cline', 'C', '#6FB3F2', { allow: true }, (m) => ({ allow: false, message: m }), { allow: true })
+
+const aider: Adapter = {
+  ...claude,
+  descriptor: {
+    id: 'aider',
+    name: 'Aider',
+    mark: 'A',
+    color: '#9CCB6A',
+    capabilities: { approvals: false, contextInjection: false, launch: true },
+  },
+  normalize({ cwd }) {
+    const project = cwd.replace(/[\\/]+$/, '')
+    return { type: 'notification', sessionId: project.split(/[\\/]/).pop() || 'default', cwd, notification: { kind: 'agent_needs_input', message: 'Aider is waiting for you' } }
+  },
+  decision() {
+    return ''
+  },
+  context() {
+    return ''
+  },
+  continueWith() {
+    return null
+  },
+  halt() {
+    return ''
+  },
+}
+
+
 const PALETTE = ['#5EC4B6', '#E6A15C', '#B58CF0', '#6FB3F2', '#EB7FA7', '#9CCB6A']
 
 function genericAdapter(id: string): Adapter {
@@ -432,6 +763,14 @@ const registry = new Map<string, Adapter>([
   ['codex', codex],
   ['gemini', gemini],
   ['cursor', cursor],
+  ['copilot', copilot],
+  ['qwen', qwen],
+  ['windsurf', windsurf],
+  ['kiro', kiro],
+  ['opencode', opencode],
+  ['amp', amp],
+  ['cline', cline],
+  ['aider', aider],
 ])
 
 export function adapterFor(agent: string): Adapter {
@@ -453,5 +792,8 @@ export function validAgent(name: string | null | undefined): string {
   if (n === 'agy' || n === 'antigravity') return 'antigravity'
   if (n === 'gemini' || n === 'gemini-cli') return 'gemini'
   if (n === 'codex' || n === 'codex-cli') return 'codex'
+  if (n === 'copilot' || n === 'copilot-cli' || n === 'github-copilot') return 'copilot'
+  if (n === 'qwen' || n === 'qwen-code') return 'qwen'
+  if (n === 'kiro' || n === 'kiro-cli') return 'kiro'
   return /^[a-z0-9-]{1,24}$/.test(n) ? n : 'claude-code'
 }

@@ -1,3 +1,4 @@
+import { tr } from '../../shared/i18n'
 import { useEffect, useState } from 'react'
 import type { DayStats, Mood, Session } from '../../../shared/types'
 import { Icon } from '../../shared/icons'
@@ -18,9 +19,9 @@ function TodayRow() {
   return (
     <button type="button" className="today-row" onClick={() => go('today')}>
       <Icon name="history" size={13} />
-      <span className="today-title">Today</span>
+      <span className="today-title">{tr('Today')}</span>
       <span className="today-facts">
-        {day.sessions} session{day.sessions === 1 ? '' : 's'} · {day.tasks.length} done · {day.files} file{day.files === 1 ? '' : 's'}
+        {tr('{0} session|{0} sessions', day.sessions)} · {tr('{0} done', day.tasks.length)} · {tr('{0} file|{0} files', day.files)}
         {day.costUsd > 0 ? ` · $${day.costUsd.toFixed(2)}` : ''}
       </span>
       <Icon name="forward" size={12} />
@@ -44,27 +45,22 @@ export function Home({ now, mood }: { now: number; mood: Mood }) {
       {!snap.serverOk && (
         <div className="banner banner-red">
           <Icon name="alert" size={14} />
-          <span>Kumo can't receive events from your agents{snap.serverError ? ` (${snap.serverError})` : ''}. Restart Kumo to try again.</span>
+          <span>{tr('Kumo can\'t receive events from your agents')}{snap.serverError ? ` (${snap.serverError})` : ''}. {tr('Restart Kumo to try again.')}</span>
         </div>
       )}
       {snap.approvals.length > 0 && (
         <button className="banner banner-amber clickable" onClick={() => go('approval')}>
           <span className="dot dot-md tone-amber pulse" />
           <span>
-            {snap.approvals.length} request{snap.approvals.length > 1 ? 's' : ''} waiting for your OK
-          </span>
+            {tr('{0} request waiting for your OK|{0} requests waiting for your OK', snap.approvals.length)}</span>
           <Icon name="forward" size={14} />
         </button>
       )}
 
       {live.length === 0 ? (
-        <EmptyState title="All quiet" body={connected.length ? 'No coding agents are running right now. Start one, or ask Kumo something.' : 'Connect an agent and its sessions will show up here as they happen.'}>
-          <Button kind="primary" icon="plus" onClick={() => open('launch')}>
-            New session
-          </Button>
-          <Button icon="chat" onClick={() => open('chat')}>
-            Ask Kumo
-          </Button>
+        <EmptyState title={tr('All quiet')} body={connected.length ? tr('No coding agents are running right now. Start one, or ask Kumo something.') : tr('Connect an agent and its sessions will show up here as they happen.')}>
+          <Button kind="primary" icon="plus" onClick={() => open('launch')}>{tr('New session')}</Button>
+          <Button icon="chat" onClick={() => open('chat')}>{tr('Ask Kumo')}</Button>
         </EmptyState>
       ) : (
         <div className="session-list scroll" style={{ maxHeight: 'calc(var(--max-body) - 120px)' }}>
@@ -80,9 +76,9 @@ export function Home({ now, mood }: { now: number; mood: Mood }) {
             <button key={i.id} className="setup-hint" onClick={() => window.kumo.openSettings('agents')}>
               <span className={`dot dot-sm ${i.state === 'error' ? 'tone-red' : 'tone-muted'}`} />
               <span className="setup-name">{i.name}</span>
-              <span className="setup-detail">{i.state === 'outdated' ? 'Reconnect needed' : i.state === 'error' ? 'Needs attention' : 'Not connected'}</span>
+              <span className="setup-detail">{i.state === 'outdated' ? tr('Reconnect needed') : i.state === 'error' ? tr('Needs attention') : tr('Not connected')}</span>
               <span className="setup-cta">
-                {i.state === 'error' ? 'Fix' : 'Connect'}
+                {i.state === 'error' ? tr('Fix') : tr('Connect')}
                 <Icon name="forward" size={12} />
               </span>
             </button>
@@ -100,12 +96,12 @@ export function Home({ now, mood }: { now: number; mood: Mood }) {
 
       {ended.length > 0 && (
         <div className="ended">
-          <SectionLabel>Recently ended</SectionLabel>
+          <SectionLabel>{tr('Recently ended')}</SectionLabel>
           {ended.slice(0, 3).map((s) => (
             <div key={s.key} className="ended-row">
               <span className="ended-name">{s.project}</span>
-              <span className="ended-note">{s.notice || 'Ended'}</span>
-              <button className="icon-btn tiny" title="Dismiss" onClick={() => void window.kumo.dismiss(s.key)}>
+              <span className="ended-note">{s.notice || tr('Ended')}</span>
+              <button className="icon-btn tiny" title={tr('Dismiss')} onClick={() => void window.kumo.dismiss(s.key)}>
                 <Icon name="close" size={12} />
               </button>
             </div>

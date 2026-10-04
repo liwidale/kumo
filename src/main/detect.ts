@@ -17,7 +17,6 @@ export function macApp(name: string): string | null {
 
 const EDITOR_APPS: Record<string, string> = { code: 'Visual Studio Code', cursor: 'Cursor', zed: 'Zed', windsurf: 'Windsurf', antigravity: 'Antigravity' }
 
-/** On macOS an editor counts as installed with or without its shell command. */
 export function editorApp(ed: string): string | null {
   return isMac && EDITOR_APPS[ed] ? macApp(EDITOR_APPS[ed]) : null
 }
@@ -54,6 +53,27 @@ export function cursorExe(): string | null {
   return which('cursor')
 }
 
+export function windsurfExe(): string | null {
+  if (isMac) return macApp('Windsurf')
+  if (isWin) {
+    const p = path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Windsurf', 'Windsurf.exe')
+    if (exists(p)) return p
+  }
+  return which('windsurf')
+}
+
+const EXTENSION_DIRS = ['.vscode', '.vscode-insiders', '.cursor', '.windsurf', '.antigravity'].map((d) => path.join(os.homedir(), d, 'extensions'))
+
+function hasExtension(prefix: string): boolean {
+  return EXTENSION_DIRS.some((dir) => {
+    try {
+      return fs.readdirSync(dir).some((d) => d.toLowerCase().startsWith(prefix))
+    } catch {
+      return false
+    }
+  })
+}
+
 export function detectInstalled(): InstalledAgents {
   if (cache && Date.now() - cache.at < 30_000) return cache.value
   const editors = ['code', 'cursor', 'zed', 'windsurf', 'antigravity'].filter((e) => which(e) || editorApp(e))
@@ -66,6 +86,16 @@ export function detectInstalled(): InstalledAgents {
     codexCli: Boolean(which('codex')),
     geminiCli: Boolean(which('gemini')),
     cursorApp: Boolean(cursorExe()),
+    copilotCli: Boolean(which('copilot')),
+    qwenCli: Boolean(which('qwen')),
+    windsurfApp: Boolean(windsurfExe()),
+    kiroCli: Boolean(which('kiro-cli')),
+    opencodeCli: Boolean(which('opencode')),
+    ampCli: Boolean(which('amp')),
+    clineCli: Boolean(which('cline')),
+    clineExt: hasExtension('saoudrizwan.claude-dev-'),
+    rooExt: hasExtension('rooveterinaryinc.roo-cline-'),
+    aiderCli: Boolean(which('aider')),
     editors,
     terminals,
   }

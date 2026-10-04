@@ -1,11 +1,3 @@
-// End-to-end check of the macOS app. Run it on every new macOS release.
-//
-//   npm run test:mac                 packaged app from release/ (falls back to the dev build)
-//   npm run test:mac -- --dev        current out/ build with the dev Electron
-//   npm run test:mac -- --x64        the Intel slice of the packaged app under Rosetta
-//
-// Settings live in a throwaway profile and agent configs in a throwaway HOME, so nothing
-// of yours is touched. Kumo itself must not be running. Screenshots land in the printed folder.
 import { execFileSync, spawn } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -100,7 +92,6 @@ class Cdp {
   }
 }
 
-// What launchd hands an app opened from Finder: no shell profile, a bare PATH.
 const launchdEnv = (home) => ({
   HOME: home,
   USER: os.userInfo().username,
@@ -176,7 +167,6 @@ function kumoRunning() {
   }
 }
 
-// ───────────────────────────────────────────────────────────────────────────────────────────
 console.log(`Kumo macOS test · macOS ${execFileSync('sw_vers', ['-productVersion'], { encoding: 'utf8' }).trim()} · ${os.arch()} host · ${dev ? 'dev build' : x64 ? 'packaged, x86_64 under Rosetta' : 'packaged app'}`)
 console.log(`Output: ${work}`)
 if (kumoRunning()) throw new Error('Kumo is running - quit it first (its hook server and ~/.kumo would collide with the test).')
@@ -350,7 +340,6 @@ if (kumoRunning()) throw new Error('Kumo is running - quit it first (its hook se
   check('sessions from every agent tracked', ['antigravity', 'gemini', 'cursor', 'codex'].every((a) => agents.has(a)), [...agents].join(', '))
 
   section('Settings')
-  // An open island stays put until it collapses, so start from the collapsed state.
   await islandCmd(main, { type: 'collapse' })
   await sleep(800)
   await island.eval(`window.kumo.setSettings({ presence: 'tray' })`)

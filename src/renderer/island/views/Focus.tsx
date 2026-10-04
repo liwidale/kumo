@@ -1,3 +1,4 @@
+import { tr } from '../../shared/i18n'
 import type { AgentDescriptor, AgentLimits, LivePreview, Session } from '../../../shared/types'
 import { focusDiff, lineDiff, type DiffLine } from '../../shared/diff'
 import { activityLine, ago, base, busy, clock, PHASE_LABEL, phaseTone, shortPath } from '../../shared/format'
@@ -34,7 +35,7 @@ export function LiveBlock({ s, lines = 6 }: { s: Session; lines?: number }) {
     if (s.phase === 'thinking')
       return (
         <div className="live-block live-quiet">
-          <span className="shimmer">Thinking about the next step…</span>
+          <span className="shimmer">{tr('Thinking about the next step…')}</span>
         </div>
       )
     return null
@@ -46,7 +47,7 @@ export function LiveBlock({ s, lines = 6 }: { s: Session; lines?: number }) {
           <span className="live-ext term">
             <Icon name="terminal" size={11} />
           </span>
-          <span className="live-file">Terminal</span>
+          <span className="live-file">{tr('Terminal')}</span>
           <span className="live-path mono">{shortPath(s.cwd)}</span>
         </div>
         <pre className="live-code mono">
@@ -67,7 +68,7 @@ export function LiveBlock({ s, lines = 6 }: { s: Session; lines?: number }) {
         <div className="live-head">
           <span className="live-ext">{extOf(p.path)}</span>
           <span className="live-file">{base(p.path || '')}</span>
-          {live && <span className="live-dot" title="Being edited" />}
+          {live && <span className="live-dot" title={tr('Being edited')} />}
           <span className="live-path mono">{p.path ? shortPath(p.path, s.cwd) : ''}</span>
           <span className="diffstat">
             {p.added ? <span className="add">+{p.added}</span> : null}
@@ -86,7 +87,7 @@ export function LiveBlock({ s, lines = 6 }: { s: Session; lines?: number }) {
       </div>
     )
   }
-  const verb = p.kind === 'read' ? 'Reading' : p.kind === 'search' ? 'Searching' : p.kind === 'fetch' ? 'Fetching' : s.current?.verb || 'Working on'
+  const verb = p.kind === 'read' ? tr('Reading') : p.kind === 'search' ? tr('Searching') : p.kind === 'fetch' ? tr('Fetching') : s.current?.verb || tr('Working on')
   return (
     <div className="live-block live-quiet">
       <Icon name={p.kind === 'read' ? 'eye' : p.kind === 'search' ? 'search' : p.kind === 'fetch' ? 'globe' : 'bolt'} size={13} />
@@ -108,8 +109,7 @@ export function Meters({ s }: { s: Session }) {
       {plan?.length ? (
         <div className="meter-col">
           <div className="meter-label">
-            <span>
-              Plan {done}/{plan.length}
+            <span>{tr('Plan')}{' '}{done}/{plan.length}
             </span>
             {active && <span className="meter-sub">· {active.text}</span>}
           </div>
@@ -122,9 +122,9 @@ export function Meters({ s }: { s: Session }) {
       {ctx != null && (
         <div className="meter-col">
           <div className="meter-label">
-            <span>Context {ctx}%</span>
+            <span>{tr('Context')}{' '}{ctx}%</span>
             <span className="meter-sub">
-              · {Math.round(s.context!.used / 1000)}k of {s.context!.window >= 1_000_000 ? '1M' : `${Math.round(s.context!.window / 1000)}k`}
+              · {tr('{0}k of {1}', Math.round(s.context!.used / 1000), s.context!.window >= 1_000_000 ? '1M' : `${Math.round(s.context!.window / 1000)}k`)}
             </span>
           </div>
           <div className="bar">
@@ -141,7 +141,7 @@ function Trail({ s, now }: { s: Session; now: number }) {
   const steps = [...s.steps]
     .reverse()
     .filter((x) => x.kind === 'tool' || x.kind === 'error' || x.kind === 'approval')
-    .filter((x) => !(subs.length && x.verb === 'Delegate'))
+    .filter((x) => !(subs.length && (x.verb === 'Delegate' || x.verb === tr('Delegate'))))
     .slice(1, subs.length ? 3 : 4)
   if (!subs.length && !steps.length) return null
   return (

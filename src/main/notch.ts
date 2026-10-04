@@ -17,7 +17,6 @@ interface ScreenInfo {
   rightW: number
 }
 
-// Queried fresh each time: screens come and go, and AppKit already caches the list.
 function nativeScreens(): ScreenInfo[] | null {
   const o = objc()
   if (!o) return null
@@ -29,7 +28,6 @@ function nativeScreens(): ScreenInfo[] | null {
         const s = o.send(list, 'objectAtIndex:', i)
         const frame = o.rect(s, 'frame')
         if (!frame) continue
-        // Older or future systems without these selectors simply report no notch.
         const insets = o.insets(s, 'safeAreaInsets')
         const left = o.rect(s, 'auxiliaryTopLeftArea')
         const right = o.rect(s, 'auxiliaryTopRightArea')

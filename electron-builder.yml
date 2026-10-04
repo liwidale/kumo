@@ -9,6 +9,10 @@ files:
   - package.json
   - "!**/*.map"
 asar: true
+publish:
+  provider: github
+  owner: liwidale
+  repo: kumo
 asarUnpack:
   - node_modules/koffi/**
   - node_modules/@koromix/**

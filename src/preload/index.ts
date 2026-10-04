@@ -81,6 +81,23 @@ const api: KumoApi = {
   setSecret: (p, k) => ipcRenderer.invoke('secret:set', p, k),
   hasSecret: (p) => ipcRenderer.invoke('secret:has', p),
   relayCommand: (a) => ipcRenderer.invoke('relay:command', a),
+  mcpStatus: () => ipcRenderer.invoke('mcp:status'),
+  answerAsk: (id, text) => ipcRenderer.invoke('ask:answer', id, text),
+  checkUpdates: () => ipcRenderer.invoke('updates:check'),
+  installUpdate: () => ipcRenderer.invoke('updates:install'),
+  refreshAgents: () => ipcRenderer.invoke('detect:refresh'),
+  hideLauncher: () => ipcRenderer.send('launcher:hide'),
+  setLauncherHeight: (h) => ipcRenderer.send('launcher:height', h),
+  onLauncher: (cb) => {
+    const show = (): void => cb('show')
+    const hide = (): void => cb('hide')
+    ipcRenderer.on('launcher:show', show)
+    ipcRenderer.on('launcher:hide', hide)
+    return () => {
+      ipcRenderer.removeListener('launcher:show', show)
+      ipcRenderer.removeListener('launcher:hide', hide)
+    }
+  },
 
   displays: () => ipcRenderer.invoke('displays'),
   openSettings: (s) => ipcRenderer.send('app:settings', s),

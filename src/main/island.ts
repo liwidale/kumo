@@ -133,11 +133,14 @@ export function createIsland(): BrowserWindow {
     setTimeout(() => win && !win.isDestroyed() && win.reload(), 600)
   })
   place()
-  win.once('ready-to-show', () => {
+  const ready = (): void => {
+    if (painted || !win || win.isDestroyed()) return
     painted = true
-    if (settings.get().presence !== 'tray') win?.showInactive()
+    if (settings.get().presence !== 'tray') win.showInactive()
     startTracking()
-  })
+  }
+  win.once('ready-to-show', ready)
+  win.webContents.once('did-finish-load', () => setTimeout(ready, 1500))
   win.on('closed', () => {
     stopTracking()
     painted = false

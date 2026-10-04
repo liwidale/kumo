@@ -31,10 +31,9 @@ function captureSoon(): void {
   capturedAt = Date.now()
   void captureActive()
 }
-const COMPACT_W = 480
 
 function windowSize(): { w: number; h: number } {
-  if (compact && display) return { w: COMPACT_W, h: display.top + Math.max(display.notchHeight, 36) + 14 }
+  if (compact && display) return { w: WIDTH, h: display.top + Math.max(display.notchHeight, 36) + 14 }
   return { w: WIDTH, h: HEIGHT }
 }
 

@@ -188,6 +188,7 @@ class Spring {
 }
 
 const KEYS = Object.keys(NEUTRAL) as (keyof Pose)[]
+const SUBSTEP = 1 / 240
 
 export class Animator {
   private springs = Object.fromEntries(KEYS.map((k) => [k, new Spring(NEUTRAL[k])])) as Record<keyof Pose, Spring>
@@ -232,7 +233,7 @@ export class Animator {
   }
 
   step(dt: number): Pose {
-    dt = Math.min(dt, 1 / 20)
+    dt = Math.min(Math.max(dt, 0), 0.1)
     this.t += dt
     const t = this.t
     const m = this.mood
@@ -338,8 +339,14 @@ export class Animator {
       }
     }
 
+    const n = Math.max(1, Math.ceil(dt / SUBSTEP))
+    const h = dt / n
     const out = {} as Pose
-    for (const k of KEYS) out[k] = this.springs[k].step(target[k], dt)
+    for (const k of KEYS) {
+      const s = this.springs[k]
+      for (let i = 0; i < n; i++) s.step(target[k], h)
+      out[k] = s.x
+    }
     return out
   }
 }

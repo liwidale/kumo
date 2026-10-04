@@ -40,25 +40,25 @@ export const Kumo = forwardRef<KumoHandle, Props>(function Kumo({ size, mood, pa
     const el = canvas.current
     if (!el || paused) return
     const dpr = Math.min(window.devicePixelRatio || 1, 3)
-    el.width = Math.round(size * dpr)
-    el.height = Math.round(size * dpr)
+    const px = Math.round(size * dpr)
+    if (el.width !== px) el.width = px
+    if (el.height !== px) el.height = px
     const ctx = el.getContext('2d')
     if (!ctx) return
     let raf = 0
     let last = performance.now()
-    let acc = 0
-    const frame = (now: number): void => {
-      raf = requestAnimationFrame(frame)
-      const dt = (now - last) / 1000
-      last = now
-      acc += dt
-      if (acc < 1 / 40) return
-      const pose = anim.current.step(acc)
-      acc = 0
+    const draw = (dt: number): void => {
+      const pose = anim.current.step(dt)
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
       ctx.clearRect(0, 0, size, size)
       drawKumo(ctx, size, pose, pal.current)
     }
+    const frame = (now: number): void => {
+      raf = requestAnimationFrame(frame)
+      draw((now - last) / 1000)
+      last = now
+    }
+    draw(0)
     raf = requestAnimationFrame(frame)
     return () => cancelAnimationFrame(raf)
   }, [size, paused])

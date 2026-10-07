@@ -277,3 +277,5 @@ Issues and pull requests are welcome.
 ## License
 
 [MIT](LICENSE) © 2026 Liwidale
+
+<p align="center"><sub>ゝ made by <a href="https://github.com/liwidale">liwidale</a></sub></p>
